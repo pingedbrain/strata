@@ -50,3 +50,24 @@ func TestSuggestMarkers(t *testing.T) {
 		t.Fatalf("py comment wrong: %q", ms[1].Comment)
 	}
 }
+
+func TestSameNameCollisionGetsFileStem(t *testing.T) {
+	caps := []mine.Capability{{
+		Name: "effects",
+		Candidates: []mine.Candidate{
+			{Name: "apply", Evidence: index.Symbol{File: "effects/latency.py", Line: 10}},
+			{Name: "apply", Evidence: index.Symbol{File: "effects/reset.py", Line: 9}},
+		},
+	}}
+	ms := SuggestMarkers(caps)
+	if ms[0].Comment != "# @spec effects/apply" {
+		t.Fatalf("first occurrence keeps plain id: %q", ms[0].Comment)
+	}
+	if ms[1].Comment != "# @spec effects/reset-apply" {
+		t.Fatalf("collision not disambiguated: %q", ms[1].Comment)
+	}
+	spec := Spec(caps[0])
+	if !strings.Contains(spec, "### Requirement: Reset Apply") {
+		t.Fatalf("spec title not disambiguated:\n%s", spec)
+	}
+}

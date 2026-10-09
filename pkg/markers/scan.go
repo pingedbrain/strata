@@ -7,9 +7,12 @@ import (
 )
 
 // Scan reads markers from any stream. name is recorded on each Marker.
+// Files with lines beyond 1 MiB (lockfiles, minified bundles, JSON
+// captures) can't host markers — they're skipped, not fatal.
 func Scan(r io.Reader, name string) ([]Marker, error) {
 	var out []Marker
 	sc := bufio.NewScanner(r)
+	sc.Buffer(make([]byte, 64*1024), 1024*1024)
 	line := 0
 	for sc.Scan() {
 		line++
@@ -23,7 +26,10 @@ func Scan(r io.Reader, name string) ([]Marker, error) {
 			})
 		}
 	}
-	return out, sc.Err()
+	if err := sc.Err(); err != nil && err != bufio.ErrTooLong {
+		return out, err
+	}
+	return out, nil
 }
 
 // ScanDir walks fsys and scans every file not excluded by skip.

@@ -128,13 +128,14 @@ func (r *Report) StaleFixes() []markers.Fix {
 	return out
 }
 
-// codeOnly excludes spec dirs, VCS metadata, and dependency dirs from
-// marker scanning — specs are not code and markers inside them would
-// self-link.
+// codeOnly excludes spec dirs (openspec/spec-kit/features), VCS
+// metadata, and dependency dirs from marker and symbol scanning —
+// specs are not code and markers inside them would self-link.
 func codeOnly(p string, isDir bool) bool {
 	if isDir {
 		base := path.Base(p)
-		return base == "openspec" || base == "vendor" || base == "node_modules" ||
+		return base == "openspec" || base == "specs" || base == "features" ||
+			base == "vendor" || base == "node_modules" ||
 			(strings.HasPrefix(base, ".") && base != ".")
 	}
 	return false

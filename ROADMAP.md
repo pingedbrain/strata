@@ -23,11 +23,14 @@ single static binary. Everything marked **(MVP)** below.
 - ~~**(MVP)** openspec `spec.md` adapter~~ ✅ — `openspec/specs/*/*.md`,
   `### Requirement:`/`#### Scenario:` + WHEN/THEN bullets (bold and bare),
   IDs derived as `<capability>/<slug>`. Line-parse, no deps. `[size:M]`
-- Markdown-with-IDs adapter — `## REQ-001`-style headings, generic format
-  for repos that just name requirements. `[size:S]` `[good-first-issue]`
-- Gherkin `.feature` adapter — Feature/Scenario Outline → requirements;
-  step defs already link to tests for free. `[size:M]` `[good-first-issue]`
-- spec-kit adapter — `spec.md`/`plan.md`/`tasks.md` layout. `[size:M]`
+- ~~Markdown-with-IDs adapter~~ ✅ — `## REQ-001:` / `### [AUTH-7]`
+  headings in any md outside spec dirs; IDs verbatim, ≥2 per file to
+  detect.
+- ~~Gherkin `.feature` adapter~~ ✅ — Scenario/Scenario Outline →
+  requirement, steps → acceptance. BDD step-def→test linkage still open.
+- ~~spec-kit adapter~~ ✅ — `specs/<NNN-feature>/spec.md` `**FR-NNN**`
+  bullets → `<feature>/FR-NNN`; FR text rides in a scenario so hashes
+  catch drift.
 - GitHub issues adapter — `gh` CLI or REST; issues as requirements.
   `[size:M]` (post-MVP; needs auth story)
 

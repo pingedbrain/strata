@@ -12,12 +12,13 @@ Two binaries, one requirement graph:
   proposes the `spec.md` it should have had, plus suggested markers.
 
 strata never invents a spec format — it ingests the ones you already use
-(openspec, spec-kit, Gherkin, markdown-with-IDs).
+(openspec, spec-kit, Gherkin `.feature`, markdown-with-IDs; see
+`examples/multiformat` for a mixed repo).
 
 > Status: early. `spec-blame check|coverage|blame|map|sync|serve|badge|tui`
-> works on openspec specs today — symbol-level on Go, Python and
-> TypeScript, SARIF + JUnit output for CI. See [ROADMAP.md](ROADMAP.md)
-> and [EXPLORATION.md](EXPLORATION.md).
+> works today — symbol-level on Go, Python and TypeScript (plus real
+> SCIP indexes via `--scip`), SARIF + JUnit output for CI.
+> See [ROADMAP.md](ROADMAP.md) and [EXPLORATION.md](EXPLORATION.md).
 
 ## Try it
 

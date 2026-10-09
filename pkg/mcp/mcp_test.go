@@ -104,3 +104,30 @@ func TestToolsCall(t *testing.T) {
 		t.Fatal("unknown tool must error")
 	}
 }
+
+func TestSymbolTools(t *testing.T) {
+	srv := &Server{Root: fixture}
+	resps := roundTrip(t, srv,
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"strata_req_for_symbol","arguments":{"symbol":"Validate"}}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"strata_symbols_for_req","arguments":{"id":"auth/token-expiry"}}}`,
+		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"strata_unlinked","arguments":{}}}`,
+	)
+	var call struct {
+		Result struct {
+			Content []struct{ Text string } `json:"content"`
+		} `json:"result"`
+	}
+	json.Unmarshal(resps[0], &call)
+	if !strings.Contains(call.Result.Content[0].Text, "Validate") ||
+		!strings.Contains(call.Result.Content[0].Text, "auth/token-expiry") {
+		t.Fatalf("req_for_symbol: %+v", call.Result)
+	}
+	json.Unmarshal(resps[1], &call)
+	if !strings.Contains(call.Result.Content[0].Text, "Validate") {
+		t.Fatalf("symbols_for_req should list Validate: %+v", call.Result)
+	}
+	json.Unmarshal(resps[2], &call)
+	if !strings.Contains(call.Result.Content[0].Text, "no unlinked") {
+		t.Fatalf("fixture has no unlinked exports: %+v", call.Result)
+	}
+}

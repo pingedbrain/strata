@@ -78,13 +78,16 @@ single static binary. Everything marked **(MVP)** below.
 - ~~`serve`~~ ✅ — MCP stdio server, hand-rolled JSON-RPC (zero deps):
   `strata_reqs_for_file`, `strata_files_for_req`, `strata_coverage`,
   `strata_stale`, `strata_dangling`. Fresh graph per call.
-- `serve` symbol-level tools — `req_for_symbol` once SCIP lands.
-  `[size:M]`
+- ~~`serve` symbol-level tools~~ ✅ — `strata_req_for_symbol`,
+  `strata_symbols_for_req`, `strata_unlinked` over the index.
 - ~~`tui`~~ ✅ — bubbletea explorer: req list (uncovered first) + detail
-  pane with scenarios and bound symbols, stale/dangling/unlinked stats.
-  Stale-refs fix flow still open. `[size:M]`
-- `badge` — emit shields.io endpoint JSON for README coverage badges.
-  `[size:S]` `[good-first-issue]`
+  pane with scenarios and bound symbols, stale/dangling/unlinked stats,
+  `f` fixes stale markers in place (sync without leaving the UI).
+- ~~`badge`~~ ✅ — `spec-blame badge` emits shields.io endpoint JSON.
+- ~~SARIF~~ ✅ — `check --format sarif` emits SARIF 2.1.0 for GitHub
+  code scanning (dangling=error, stale=warning, unlinked=note).
+- ~~JUnit merge~~ ✅ — `check|coverage --junit results.xml` marks
+  requirements verified/failing via test-name→symbol matching.
 
 ### `cmd/spec-excavate` — mine binary
 

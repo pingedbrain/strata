@@ -2,6 +2,7 @@
 package main
 
 import (
+	"os"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -43,7 +44,7 @@ func Other() {}
 }
 
 func TestTUIModelRows(t *testing.T) {
-	m := newTUIModel(testReport(t))
+	m := newTUIModel(testReport(t), ".")
 	if len(m.rows) != 2 {
 		t.Fatalf("want 2 rows, got %d", len(m.rows))
 	}
@@ -60,7 +61,7 @@ func TestTUIModelRows(t *testing.T) {
 }
 
 func TestTUIView(t *testing.T) {
-	m := newTUIModel(testReport(t))
+	m := newTUIModel(testReport(t), ".")
 	m2, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	m = m2.(tuiModel)
 	out := m.View()
@@ -74,6 +75,48 @@ func TestTUIView(t *testing.T) {
 	m = m3.(tuiModel)
 	if d := stripANSI(m.detail()); !strings.Contains(d, "Validate") {
 		t.Errorf("detail should show bound symbol\n%s", d)
+	}
+}
+
+func TestTUIFixStale(t *testing.T) {
+	dir := t.TempDir()
+	spec := `# auth
+
+### Requirement: Token expiry
+New spec text — the marker hash below is wrong now.
+
+#### Scenario: Expired
+- **WHEN** token is old
+- **THEN** reject
+`
+	code := `package main
+
+// @spec auth/token-expiry #deadbe
+func Validate() {}
+`
+	if err := os.MkdirAll(dir+"/openspec/specs/auth", 0755); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(dir+"/openspec/specs/auth/spec.md", []byte(spec), 0644)
+	os.WriteFile(dir+"/main.go", []byte(code), 0644)
+
+	rep, err := check.Run(os.DirFS(dir), check.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rep.StaleFixes()) == 0 {
+		t.Fatal("fixture should have a stale marker")
+	}
+	m := newTUIModel(rep, dir)
+	nm, err := m.fixStale()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if nm.notice == "" {
+		t.Fatal("expected a sync notice")
+	}
+	if len(nm.rep.StaleFixes()) != 0 {
+		t.Fatal("stale marker should be fixed after 'f'")
 	}
 }
 

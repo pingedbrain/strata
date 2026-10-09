@@ -70,7 +70,7 @@ func (s *Server) handle(req request) (response, bool) {
 		r.Result = map[string]any{
 			"protocolVersion": "2024-11-05",
 			"capabilities":    map[string]any{"tools": map[string]any{}},
-			"serverInfo":      map[string]string{"name": "spec-blame", "version": "0.1.0"},
+			"serverInfo":      map[string]string{"name": "spec-blame", "version": "0.2.0"},
 		}
 	case "ping":
 		r.Result = map[string]any{}
@@ -106,6 +106,11 @@ func toolList() []map[string]any {
 		{"name": "strata_coverage", "description": "Requirement coverage summary", "inputSchema": empty},
 		{"name": "strata_stale", "description": "Markers whose bound spec changed since annotation", "inputSchema": empty},
 		{"name": "strata_dangling", "description": "Markers pointing at nonexistent requirements", "inputSchema": empty},
+		{"name": "strata_req_for_symbol", "description": "Requirements linked to a code symbol (func/type/method name)",
+			"inputSchema": prop("symbol", "symbol name, e.g. Validate or Client.Validate")},
+		{"name": "strata_symbols_for_req", "description": "Code symbols implementing a requirement",
+			"inputSchema": prop("id", "requirement id, e.g. auth/token-expiry")},
+		{"name": "strata_unlinked", "description": "Exported symbols with no requirement marker (dead-code radar)", "inputSchema": empty},
 	}
 }
 
@@ -118,14 +123,25 @@ func textResult(s string) map[string]any {
 	return map[string]any{"content": []map[string]string{{"type": "text", "text": s}}}
 }
 
+// matchSymbol compares a bound symbol name to a query: exact match, or
+// unqualified tail for dotted method names (Client.Validate matches
+// "Validate" and "Client.Validate").
+func matchSymbol(bound, query string) bool {
+	if bound == "" || query == "" {
+		return false
+	}
+	return bound == query || strings.HasSuffix(bound, "."+query)
+}
+
 func (s *Server) callTool(raw json.RawMessage) (map[string]any, error) {
 	var p callParams
 	if err := json.Unmarshal(raw, &p); err != nil {
 		return nil, err
 	}
 	var args struct {
-		File string `json:"file"`
-		ID   string `json:"id"`
+		File   string `json:"file"`
+		ID     string `json:"id"`
+		Symbol string `json:"symbol"`
 	}
 	json.Unmarshal(p.Arguments, &args)
 
@@ -184,6 +200,47 @@ func (s *Server) callTool(raw json.RawMessage) (map[string]any, error) {
 		}
 		if b.Len() == 0 {
 			b.WriteString("no dangling markers")
+		}
+		return textResult(b.String()), nil
+	case "strata_req_for_symbol":
+		var b strings.Builder
+		for _, e := range rep.Result.Edges {
+			if !matchSymbol(e.Symbol, args.Symbol) {
+				continue
+			}
+			status := "ok"
+			if e.Stale {
+				status = "stale"
+			}
+			r := rep.Graph.Requirements[e.ReqID]
+			fmt.Fprintf(&b, "%s %s:%d → %s [%s] %s\n", e.Symbol, e.File, e.Line, e.ReqID, status, r.Title)
+		}
+		if b.Len() == 0 {
+			b.WriteString("no requirement links to symbol " + args.Symbol)
+		}
+		return textResult(b.String()), nil
+	case "strata_symbols_for_req":
+		r, ok := rep.Graph.Requirements[args.ID]
+		if !ok {
+			return nil, fmt.Errorf("no such requirement: %s", args.ID)
+		}
+		var b strings.Builder
+		fmt.Fprintf(&b, "%s — %s (%s)\n", r.ID, r.Title, r.Source)
+		for _, e := range rep.Result.EdgesFor(args.ID) {
+			sym := e.Symbol
+			if sym == "" {
+				sym = "(file-level marker)"
+			}
+			fmt.Fprintf(&b, "  %s:%d %s (%s)\n", e.File, e.Line, sym, e.Kind)
+		}
+		return textResult(b.String()), nil
+	case "strata_unlinked":
+		var b strings.Builder
+		for _, s := range rep.Result.Unlinked {
+			fmt.Fprintf(&b, "%s:%d %s (%s)\n", s.File, s.Line, s.Name, s.Kind)
+		}
+		if b.Len() == 0 {
+			b.WriteString("no unlinked exported symbols")
 		}
 		return textResult(b.String()), nil
 	}

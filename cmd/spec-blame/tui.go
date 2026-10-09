@@ -13,6 +13,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/pingedbrain/strata/pkg/check"
 	"github.com/pingedbrain/strata/pkg/graph"
+	"github.com/pingedbrain/strata/pkg/markers"
 	"github.com/pingedbrain/strata/pkg/reqgraph"
 )
 
@@ -36,15 +37,17 @@ type reqRow struct {
 
 type tuiModel struct {
 	rep    *check.Report
+	root   string
 	rows   []reqRow
 	sel    int
 	listAt int // top of visible window
 	vp     viewport.Model
 	w, h   int
 	ready  bool
+	notice string // transient status line ("synced 2 stale markers")
 }
 
-func newTUIModel(rep *check.Report) tuiModel {
+func newTUIModel(rep *check.Report, root string) tuiModel {
 	rows := make([]reqRow, 0, len(rep.Graph.IDs()))
 	uncovered := map[string]bool{}
 	for _, r := range rep.Result.Uncovered {
@@ -68,7 +71,31 @@ func newTUIModel(rep *check.Report) tuiModel {
 	sort.SliceStable(rows, func(i, j int) bool { // uncovered first
 		return rows[i].status > rows[j].status
 	})
-	return tuiModel{rep: rep, rows: rows}
+	return tuiModel{rep: rep, rows: rows, root: root}
+}
+
+// fixStale rewrites every stale marker hash in place and reloads the
+// report — same operation as `spec-blame sync`.
+func (m tuiModel) fixStale() (tuiModel, error) {
+	fixes := m.rep.StaleFixes()
+	if len(fixes) == 0 {
+		m.notice = "no stale markers to fix"
+		return m, nil
+	}
+	if err := markers.ApplyFixes(m.root, fixes); err != nil {
+		return m, err
+	}
+	rep, err := check.Run(os.DirFS(m.root), check.Options{})
+	if err != nil {
+		return m, err
+	}
+	nm := newTUIModel(rep, m.root)
+	nm.sel = min(m.sel, len(nm.rows)-1)
+	nm.vp = m.vp
+	nm.w, nm.h, nm.ready = m.w, m.h, m.ready
+	nm.notice = fmt.Sprintf("synced %d stale marker(s)", len(fixes))
+	nm.vp.SetContent(nm.detail())
+	return nm, nil
 }
 
 func (m tuiModel) Init() tea.Cmd { return nil }
@@ -86,6 +113,13 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "q", "ctrl+c", "esc":
 			return m, tea.Quit
+		case "f":
+			nm, err := m.fixStale()
+			if err != nil {
+				m.notice = "fix failed: " + err.Error()
+				return m, nil
+			}
+			return nm, nil
 		case "j", "down":
 			m.sel = min(m.sel+1, len(m.rows)-1)
 		case "k", "up":
@@ -178,10 +212,13 @@ func (m tuiModel) View() string {
 
 	// footer
 	cov := repCoverage(m.rep)
-	foot := fmt.Sprintf(" %d reqs · %s covered · %d stale · %d dangling · %d unlinked symbols    %s",
+	foot := fmt.Sprintf(" %d reqs · %s covered · %d stale · %d dangling · %d unlinked    %s",
 		len(m.rows), cov,
 		countStale(m.rep), len(m.rep.Result.Dangling), len(m.rep.Result.Unlinked),
-		stKey.Render("↑↓ navigate · pgup/dn scroll · q quit"))
+		stKey.Render("↑↓ nav · pgup/dn scroll · f fix stale · q quit"))
+	if m.notice != "" {
+		foot = stWarn.Render(" "+m.notice) + "\n" + foot
+	}
 
 	return lipgloss.JoinHorizontal(lipgloss.Top, list, divider, detail) + "\n" + stDim.Render(foot)
 }
@@ -211,6 +248,6 @@ func runTUI(args []string) error {
 	if err != nil {
 		return err
 	}
-	_, err = tea.NewProgram(newTUIModel(rep), tea.WithAltScreen()).Run()
+	_, err = tea.NewProgram(newTUIModel(rep, *root), tea.WithAltScreen()).Run()
 	return err
 }

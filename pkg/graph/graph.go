@@ -24,6 +24,8 @@ type Result struct {
 	Dangling  []markers.Marker        // markers pointing at unknown requirement IDs
 	Uncovered []*reqgraph.Requirement // requirements with no implementation link
 	Unlinked  []index.Symbol          // exported symbols with no marker
+	Verified  []string                // req IDs with a passing covering test (set by ApplyTestResults)
+	Failing   []string                // req IDs with a failing covering test
 }
 
 // Join resolves every marker against the requirement graph. idx may be
@@ -39,6 +41,13 @@ func Join(g *reqgraph.Graph, ms []markers.Marker, idx *index.Index) *Result {
 		r, ok := g.Requirements[m.ReqID]
 		if !ok {
 			res.Dangling = append(res.Dangling, m)
+			// a dangling marker still marks a symbol — it's broken
+			// (reported above), not unlinked
+			if idx != nil {
+				if sym, ok := idx.SymbolBelow(m.File, m.Line); ok {
+					linkedSyms[sym] = true
+				}
+			}
 			continue
 		}
 		e := Edge{Marker: m, Stale: m.Hash != "" && m.Hash != r.AcceptanceHash()}

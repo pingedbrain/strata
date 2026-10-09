@@ -6,6 +6,7 @@ package index
 
 import (
 	"io/fs"
+	"strings"
 )
 
 // Symbol is a named code entity with an exact location.
@@ -93,6 +94,20 @@ func FileMatch(got, want string) bool {
 
 func hasSuffix(s, suffix string) bool {
 	return len(s) >= len(suffix) && s[len(s)-len(suffix):] == suffix
+}
+
+// Covers reports whether a test name plausibly exercises a symbol:
+// normalized containment, case/underscore/space-insensitive.
+// "TestValidateToken" covers "ValidateToken" and "validate_token".
+func Covers(testName, sym string) bool {
+	n := func(s string) string {
+		s = strings.ToLower(s)
+		s = strings.TrimPrefix(s, "test")
+		r := strings.NewReplacer("_", "", " ", "", "-", "")
+		return r.Replace(s)
+	}
+	tn, sn := n(testName), n(sym)
+	return sn != "" && strings.Contains(tn, sn)
 }
 
 // FilesMatching returns index keys matching a path or basename.

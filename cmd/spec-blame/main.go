@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/pingedbrain/strata/pkg/check"
+	"github.com/pingedbrain/strata/pkg/emit"
 	"github.com/pingedbrain/strata/pkg/index"
 	"github.com/pingedbrain/strata/pkg/markers"
 	"github.com/pingedbrain/strata/pkg/mcp"
@@ -23,11 +24,14 @@ commands:
   map       bidirectional req↔code lookup
   sync      rewrite stale bound hashes after reviewed spec edits
   serve     MCP server over the requirement graph
+  badge     shields.io endpoint JSON for spec coverage
   tui       interactive requirement/traceability browser
 
 common flags:
   --root            repo root (default ".")
   --min-coverage    fail check below this fraction, e.g. 0.8 (default 0 = advisory)
+  --format sarif    emit SARIF 2.1.0 instead of text (check, coverage)
+  --junit <file>    merge JUnit XML results → verified/failing requirements
 `
 
 func main() {
@@ -49,6 +53,8 @@ func main() {
 		err = runSync(os.Args[2:])
 	case "serve":
 		err = runServe(os.Args[2:])
+	case "badge":
+		err = runBadge(os.Args[2:])
 	case "tui":
 		err = runTUI(os.Args[2:])
 	default:
@@ -61,38 +67,80 @@ func main() {
 	}
 }
 
-func loadRepo(args []string) (*check.Report, string, error) {
+func loadRepo(args []string) (*check.Report, string, string, error) {
 	fs := flag.NewFlagSet("spec-blame", flag.ContinueOnError)
 	root := fs.String("root", ".", "repo root")
 	minCov := fs.Float64("min-coverage", 0, "minimum coverage fraction")
+	format := fs.String("format", "text", "output format: text | sarif")
+	junit := fs.String("junit", "", "JUnit XML test results file (inside --root)")
 	if err := fs.Parse(args); err != nil {
-		return nil, "", err
+		return nil, "", "", err
 	}
-	rep, err := check.Run(os.DirFS(*root), check.Options{MinCoverage: *minCov})
-	return rep, *root, err
+	opts := check.Options{MinCoverage: *minCov}
+	if *junit != "" {
+		opts.JUnit = []string{*junit}
+	}
+	rep, err := check.Run(os.DirFS(*root), opts)
+	return rep, *root, *format, err
 }
 
 func runCheck(args []string) error {
-	rep, _, err := loadRepo(args)
+	rep, _, format, err := loadRepo(args)
 	if err != nil {
 		return err
 	}
+	fails := rep.GateFailures()
+	if format == "sarif" {
+		b, err := rep.SARIF()
+		if err != nil {
+			return err
+		}
+		os.Stdout.Write(b)
+		fmt.Println()
+		if len(fails) > 0 {
+			return fmt.Errorf("gate failed")
+		}
+		return nil
+	}
 	fmt.Printf("%s, %d requirements, %d links\n",
 		fmt.Sprintf("specs: %v", rep.Formats), len(rep.Graph.IDs()), len(rep.Result.Edges))
-	fails := rep.GateFailures()
 	for _, f := range fails {
 		fmt.Println("✗", f)
 	}
 	cov, tot := rep.Result.Coverage()
 	fmt.Printf("coverage: %d/%d requirements linked\n", cov, tot)
+	if len(rep.Result.Verified)+len(rep.Result.Failing) > 0 {
+		fmt.Printf("verified: %d · failing: %d\n", len(rep.Result.Verified), len(rep.Result.Failing))
+	}
 	if len(fails) > 0 {
 		return fmt.Errorf("gate failed")
 	}
 	return nil
 }
 
+func runBadge(args []string) error {
+	fs := flag.NewFlagSet("badge", flag.ContinueOnError)
+	root := fs.String("root", ".", "repo root")
+	label := fs.String("label", "spec coverage", "badge label")
+	out := fs.String("out", "", "write to file instead of stdout")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	rep, err := check.Run(os.DirFS(*root), check.Options{})
+	if err != nil {
+		return err
+	}
+	cov, tot := rep.Result.Coverage()
+	b := emit.Badge(*label, cov, tot)
+	if *out != "" {
+		return os.WriteFile(*out, b, 0644)
+	}
+	_, err = os.Stdout.Write(b)
+	return err
+}
+
 func runCoverage(args []string) error {
-	rep, _, err := loadRepo(args)
+	rep, _, _, err := loadRepo(args)
 	if err != nil {
 		return err
 	}

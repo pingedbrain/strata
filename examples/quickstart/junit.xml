@@ -1,0 +1,5 @@
+<testsuites tests="1" failures="0">
+  <testsuite name="example">
+    <testcase classname="example" name="TestGreet" time="0.01"/>
+  </testsuite>
+</testsuites>

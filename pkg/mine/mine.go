@@ -91,15 +91,6 @@ func capabilityOf(p string) string {
 	}
 }
 
-// covers reports whether a test name plausibly exercises sym:
-// normalized containment, case/underscore/space-insensitive.
-func covers(testName, sym string) bool {
-	n := func(s string) string {
-		s = strings.ToLower(s)
-		s = strings.TrimPrefix(s, "test")
-		r := strings.NewReplacer("_", "", " ", "", "-", "")
-		return r.Replace(s)
-	}
-	tn, sn := n(testName), n(sym)
-	return sn != "" && strings.Contains(tn, sn)
-}
+// covers reports whether a test name plausibly exercises sym.
+// Alias kept at the call sites via index.Covers.
+func covers(testName, sym string) bool { return index.Covers(testName, sym) }

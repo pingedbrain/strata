@@ -11,6 +11,7 @@ import (
 	"github.com/pingedbrain/strata/pkg/graph"
 	"github.com/pingedbrain/strata/pkg/index"
 	"github.com/pingedbrain/strata/pkg/ingest"
+	"github.com/pingedbrain/strata/pkg/junit"
 	"github.com/pingedbrain/strata/pkg/markers"
 	"github.com/pingedbrain/strata/pkg/reqgraph"
 )
@@ -20,6 +21,9 @@ type Options struct {
 	// MinCoverage, when > 0, fails the gate below this fraction.
 	// Default 0 = coverage is advisory only.
 	MinCoverage float64
+	// JUnit lists test-result XML files (relative to the scanned root)
+	// to merge into Verified/Failing requirement status.
+	JUnit []string
 }
 
 // Report is the full gate result.
@@ -49,9 +53,21 @@ func Run(fsys fs.FS, opts Options) (*Report, error) {
 	if err != nil {
 		return nil, err
 	}
+	res := graph.Join(g, ms, idx)
+	for _, jp := range opts.JUnit {
+		data, err := fs.ReadFile(fsys, jp)
+		if err != nil {
+			return nil, fmt.Errorf("junit: %w", err)
+		}
+		cases, err := junit.Parse(data)
+		if err != nil {
+			return nil, fmt.Errorf("junit %s: %w", jp, err)
+		}
+		res.ApplyTestResults(idx, cases)
+	}
 	return &Report{
 		Formats: formats, Graph: g, Index: idx,
-		Result: graph.Join(g, ms, idx), MinCov: opts.MinCoverage,
+		Result: res, MinCov: opts.MinCoverage,
 	}, nil
 }
 

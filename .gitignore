@@ -1,0 +1,6 @@
+/spec-blame
+/spec-excavate
+/dist/
+*.test
+*.out
+coverage.*

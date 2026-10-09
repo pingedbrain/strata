@@ -18,11 +18,11 @@ single static binary. Everything marked **(MVP)** below.
 
 ### `pkg/reqgraph` — canonical IR
 
-- **(MVP)** `Requirement` type: ID, title, text, parent, source location,
-  acceptance-criteria hash (`#a3f2b1`-style short hash — staleness without
-  diffing prose). `[size:S]`
-- **(MVP)** openspec `spec.md` adapter — `#### Scenario:` Given/When/Then
-  blocks → requirements + scenarios. goldmark for parsing. `[size:M]`
+- ~~**(MVP)** `Requirement` type: ID, title, text, parent, source location,
+  acceptance-criteria hash~~ ✅ — whitespace-normalized sha256[:6].
+- ~~**(MVP)** openspec `spec.md` adapter~~ ✅ — `openspec/specs/*/*.md`,
+  `### Requirement:`/`#### Scenario:` + WHEN/THEN bullets (bold and bare),
+  IDs derived as `<capability>/<slug>`. Line-parse, no deps. `[size:M]`
 - Markdown-with-IDs adapter — `## REQ-001`-style headings, generic format
   for repos that just name requirements. `[size:S]` `[good-first-issue]`
 - Gherkin `.feature` adapter — Feature/Scenario Outline → requirements;
@@ -33,12 +33,9 @@ single static binary. Everything marked **(MVP)** below.
 
 ### `pkg/markers` — code annotations
 
-- **(MVP)** Marker grammar: `@spec <req-id> #<hash>` in any comment style
-  (per-language comment syntax table, no parsing — structured grep).
-  Aliases: `@implements`, `@verifies`. `[size:S]`
-- **(MVP)** Staleness: marker hash vs current acceptance-criteria hash →
-  `stale` flag. `[size:S]`
-- **(MVP)** Dangling refs: marker → nonexistent requirement. `[size:S]`
+- ~~**(MVP)** Marker grammar: `@spec <req-id> #<hash>`~~ ✅ — any comment
+  style (`//`, `#`, `/*`, `--`), structured grep, `Scan`/`ScanFile`/`ScanDir`.
+- ~~**(MVP)** Staleness~~ ✅ + ~~**(MVP)** Dangling refs~~ ✅ — in pkg/graph Join.
 - Marker auto-fix: `spec-blame sync` rewrites stale hashes after spec
   edits are reviewed (spec-seal proved this UX works). `[size:S]`
 
@@ -56,10 +53,9 @@ single static binary. Everything marked **(MVP)** below.
 
 ### `pkg/graph` — the join
 
-- **(MVP)** Link resolution: markers + test-name conventions → req↔code
-  edges. `[size:M]`
-- **(MVP)** Coverage computation: reqs with ≥1 impl link, ≥1 test link.
-  `[size:S]`
+- ~~**(MVP)** Link resolution + coverage computation~~ ✅ — `Join` classifies
+  edges (stale/dangling), uncovered reqs, coverage counts. Test-name
+  conventions still open. `[size:M]`
 - JUnit XML merge — test results turn `covered` into `verified`/`failing`
   (reqcov pattern — auditors want this, costs little). `[size:M]`
 - BDD test linkage — pytest-bdd/cucumber step-def graphs feed coverage
@@ -67,10 +63,9 @@ single static binary. Everything marked **(MVP)** below.
 
 ### `cmd/spec-blame` — verify binary
 
-- **(MVP)** `check` — gate: dangling refs, stale markers, unknown IDs,
-  opt-in min-coverage. Exit codes + `--format sarif` for GitHub code
-  scanning. `[size:M]`
-- **(MVP)** `coverage` — % + per-requirement table. `[size:S]`
+- ~~**(MVP)** `check`~~ ✅ — gate fails on dangling/stale only, coverage
+  advisory (`--min-coverage` opt-in). SARIF output still open. `[size:M]`
+- ~~**(MVP)** `coverage`~~ ✅ — % + per-requirement table. `[size:S]`
 - **(MVP)** `blame <file>` — annotate file: which requirements justify
   each marked region. The name-making command. `[size:S]`
 - **(MVP)** `map <req>` / `map <file>` — bidirectional lookup. `[size:S]`
@@ -97,7 +92,7 @@ single static binary. Everything marked **(MVP)** below.
 ### Distribution
 
 - **(MVP)** GitHub Action — `uses: …/strata@v0` running `spec-blame check`
-  (microburst action.yml pattern). `[size:S]`
+  (microburst action.yml pattern). `[size:S]` `[good-first-issue]`
 - goreleaser pipeline — binaries for linux/mac/win + `go install`.
   `[size:S]` `[good-first-issue]`
 - SARIF upload docs — results in GitHub code-scanning UI. `[size:S]`

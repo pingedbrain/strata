@@ -9,7 +9,6 @@
 package markers
 
 import (
-	"bufio"
 	"os"
 	"regexp"
 )
@@ -52,23 +51,7 @@ func ScanFile(path string) ([]Marker, error) {
 		return nil, err
 	}
 	defer f.Close()
-
-	var out []Marker
-	sc := bufio.NewScanner(f)
-	line := 0
-	for sc.Scan() {
-		line++
-		for _, m := range re.FindAllStringSubmatch(sc.Text(), -1) {
-			out = append(out, Marker{
-				Kind:  kindOf(m[1]),
-				ReqID: m[2],
-				Hash:  m[3],
-				File:  path,
-				Line:  line,
-			})
-		}
-	}
-	return out, sc.Err()
+	return Scan(f, path)
 }
 
 func kindOf(s string) Kind {

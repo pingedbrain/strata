@@ -1,12 +1,12 @@
 // Package graph joins the requirement graph with scanned markers into a
 // traceability result: links, dangling references, stale bindings, and
 // coverage. The join is deterministic — inference may suggest links, but
-// only explicit markers decide them.
+// only explicit markers decide them. When a symbol index is provided,
+// markers resolve to the symbol declared directly below them.
 package graph
 
 import (
-	"strings"
-
+	"github.com/pingedbrain/strata/pkg/index"
 	"github.com/pingedbrain/strata/pkg/markers"
 	"github.com/pingedbrain/strata/pkg/reqgraph"
 )
@@ -14,7 +14,8 @@ import (
 // Edge is a resolved link between a marker and a requirement.
 type Edge struct {
 	markers.Marker
-	Stale bool // bound hash no longer matches the requirement's acceptance text
+	Symbol string // symbol the marker annotates, "" if file-level
+	Stale  bool   // bound hash no longer matches the requirement's acceptance text
 }
 
 // Result is the joined traceability picture.
@@ -22,13 +23,17 @@ type Result struct {
 	Edges     []Edge                  // resolved marker→requirement links
 	Dangling  []markers.Marker        // markers pointing at unknown requirement IDs
 	Uncovered []*reqgraph.Requirement // requirements with no implementation link
+	Unlinked  []index.Symbol          // exported symbols with no marker
 }
 
-// Join resolves every marker against the requirement graph.
+// Join resolves every marker against the requirement graph. idx may be
+// nil (file-level mode); when set, each marker binds to the symbol
+// declared directly below it and unlinked symbols surface in Result.
 // Impl-links are Spec/Implements kinds; Verifies counts separately.
-func Join(g *reqgraph.Graph, ms []markers.Marker) *Result {
+func Join(g *reqgraph.Graph, ms []markers.Marker, idx *index.Index) *Result {
 	res := &Result{}
 	implLinked := map[string]bool{}
+	linkedSyms := map[index.Symbol]bool{}
 
 	for _, m := range ms {
 		r, ok := g.Requirements[m.ReqID]
@@ -37,6 +42,12 @@ func Join(g *reqgraph.Graph, ms []markers.Marker) *Result {
 			continue
 		}
 		e := Edge{Marker: m, Stale: m.Hash != "" && m.Hash != r.AcceptanceHash()}
+		if idx != nil {
+			if sym, ok := idx.SymbolBelow(m.File, m.Line); ok {
+				e.Symbol = sym.Name
+				linkedSyms[sym] = true
+			}
+		}
 		res.Edges = append(res.Edges, e)
 		if m.Kind != markers.Verifies {
 			implLinked[m.ReqID] = true
@@ -46,6 +57,17 @@ func Join(g *reqgraph.Graph, ms []markers.Marker) *Result {
 	for _, id := range g.IDs() {
 		if !implLinked[id] {
 			res.Uncovered = append(res.Uncovered, g.Requirements[id])
+		}
+	}
+	if idx != nil {
+		for _, syms := range idx.Files {
+			for _, s := range syms {
+				// only exported symbols are dead-code candidates —
+				// private helpers don't need requirements
+				if s.Exported && !linkedSyms[s] {
+					res.Unlinked = append(res.Unlinked, s)
+				}
+			}
 		}
 	}
 	return res
@@ -62,17 +84,11 @@ func (r *Result) Coverage() (covered, total int) {
 	return len(linked), len(linked) + len(r.Uncovered)
 }
 
-// fileMatch accepts exact paths or basename suffixes ("main.go" matches
-// "cmd/sub/main.go").
-func fileMatch(got, want string) bool {
-	return got == want || strings.HasSuffix(got, "/"+want)
-}
-
 // EdgesIn returns resolved links whose marker sits in file.
 func (r *Result) EdgesIn(file string) []Edge {
 	var out []Edge
 	for _, e := range r.Edges {
-		if fileMatch(e.File, file) {
+		if index.FileMatch(e.File, file) {
 			out = append(out, e)
 		}
 	}
@@ -83,7 +99,7 @@ func (r *Result) EdgesIn(file string) []Edge {
 func (r *Result) DanglingIn(file string) []markers.Marker {
 	var out []markers.Marker
 	for _, m := range r.Dangling {
-		if fileMatch(m.File, file) {
+		if index.FileMatch(m.File, file) {
 			out = append(out, m)
 		}
 	}

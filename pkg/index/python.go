@@ -1,4 +1,4 @@
-package mine
+package index
 
 import (
 	"bufio"
@@ -6,8 +6,6 @@ import (
 	"path"
 	"regexp"
 	"strings"
-
-	"github.com/pingedbrain/strata/pkg/index"
 )
 
 type pyExtractor struct{}
@@ -26,23 +24,24 @@ func (pyExtractor) isTestFile(p string) bool {
 		strings.Contains(p, "tests/")
 }
 
-func (pyExtractor) parse(data []byte, filename string) (exports, tests []index.Symbol) {
+func (pyExtractor) parse(data []byte, filename string) (exports, tests []Symbol) {
 	testFile := pyExtractor{}.isTestFile(filename)
 	sc := bufio.NewScanner(bytes.NewReader(data))
+	sc.Buffer(make([]byte, 64*1024), 1024*1024)
 	line := 0
 	for sc.Scan() {
 		line++
 		text := sc.Text()
 		if testFile {
 			if m := pyTest.FindStringSubmatch(text); m != nil {
-				tests = append(tests, index.Symbol{Name: m[1], Kind: "test", File: filename, Line: line})
+				tests = append(tests, Symbol{Name: m[1], Kind: "test", File: filename, Line: line})
 			}
 			continue
 		}
-		if m := pyDef.FindStringSubmatch(text); m != nil && !strings.HasPrefix(m[1], "_") {
-			exports = append(exports, index.Symbol{Name: m[1], Kind: "func", File: filename, Line: line})
-		} else if m := pyClass.FindStringSubmatch(text); m != nil && !strings.HasPrefix(m[1], "_") {
-			exports = append(exports, index.Symbol{Name: m[1], Kind: "type", File: filename, Line: line})
+		if m := pyDef.FindStringSubmatch(text); m != nil {
+			exports = append(exports, Symbol{Name: m[1], Kind: "func", File: filename, Line: line, Exported: !strings.HasPrefix(m[1], "_")})
+		} else if m := pyClass.FindStringSubmatch(text); m != nil {
+			exports = append(exports, Symbol{Name: m[1], Kind: "type", File: filename, Line: line, Exported: !strings.HasPrefix(m[1], "_")})
 		}
 	}
 	return exports, tests

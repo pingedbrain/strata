@@ -1,6 +1,8 @@
 // Package mine excavates candidate requirements from a repo's existing
 // code: exported symbols become requirement seeds, tests become scenario
 // seeds. Deterministic — no LLM. Output feeds pkg/emit to draft specs.
+// Symbol extraction lives in pkg/index; mine adds capability grouping
+// and test→symbol linkage.
 package mine
 
 import (
@@ -26,62 +28,27 @@ type Capability struct {
 	Candidates []Candidate
 }
 
-// extractor pulls exported symbols and test names from one language.
-type extractor interface {
-	match(path string) bool
-	isTestFile(path string) bool
-	parse(data []byte, filename string) (exports, tests []index.Symbol)
-}
-
-var extractors = []extractor{goExtractor{}, pyExtractor{}, tsExtractor{}}
-
 // Scan walks fsys, extracts symbols, groups candidates by directory
 // capability, and links tests to candidates by normalized name.
 func Scan(fsys fs.FS) ([]Capability, error) {
-	byCap := map[string][]Candidate{}
-	var tests []index.Symbol
-
-	err := fs.WalkDir(fsys, ".", func(p string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			base := path.Base(p)
-			if strings.HasPrefix(base, ".") && base != "." || base == "vendor" || base == "node_modules" {
-				return fs.SkipDir
-			}
-			return nil
-		}
-		for _, ex := range extractors {
-			if !ex.match(p) {
-				continue
-			}
-			data, err := fs.ReadFile(fsys, p)
-			if err != nil {
-				return err
-			}
-			exports, ts := ex.parse(data, p)
-			cap := capabilityOf(p)
-			if ex.isTestFile(p) {
-				tests = append(tests, ts...)
-			}
-			for _, s := range exports {
-				byCap[cap] = append(byCap[cap], Candidate{
-					Name: s.Name, Kind: s.Kind, Evidence: s,
-				})
-			}
-			break // first matching extractor owns the file
-		}
-		return nil
-	})
+	idx, err := index.Scan(fsys, skipNoise)
 	if err != nil {
 		return nil, err
 	}
-
+	byCap := map[string][]Candidate{}
+	for _, syms := range idx.Files {
+		for _, s := range syms {
+			if !s.Exported {
+				continue // public surface = requirement seeds
+			}
+			cap := capabilityOf(s.File)
+			byCap[cap] = append(byCap[cap], Candidate{Name: s.Name, Kind: s.Kind, Evidence: s})
+		}
+	}
 	// link tests to candidates globally (a tests/ dir tests other dirs)
 	for cap, cands := range byCap {
 		for i := range cands {
-			for _, t := range tests {
+			for _, t := range idx.Tests {
 				if covers(t.Name, cands[i].Name) {
 					cands[i].Tests = append(cands[i].Tests, t)
 				}
@@ -100,6 +67,14 @@ func Scan(fsys fs.FS) ([]Capability, error) {
 		out = append(out, Capability{Name: n, Candidates: byCap[n]})
 	}
 	return out, nil
+}
+
+func skipNoise(p string, isDir bool) bool {
+	if !isDir {
+		return false
+	}
+	base := path.Base(p)
+	return base != "." && (strings.HasPrefix(base, ".") || base == "vendor" || base == "node_modules")
 }
 
 // capabilityOf names a capability after its directory, stripping common

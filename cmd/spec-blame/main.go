@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/pingedbrain/strata/pkg/check"
+	"github.com/pingedbrain/strata/pkg/index"
 	"github.com/pingedbrain/strata/pkg/markers"
 	"github.com/pingedbrain/strata/pkg/mcp"
 )
@@ -22,6 +23,7 @@ commands:
   map       bidirectional req↔code lookup
   sync      rewrite stale bound hashes after reviewed spec edits
   serve     MCP server over the requirement graph
+  tui       interactive requirement/traceability browser
 
 common flags:
   --root            repo root (default ".")
@@ -47,6 +49,8 @@ func main() {
 		err = runSync(os.Args[2:])
 	case "serve":
 		err = runServe(os.Args[2:])
+	case "tui":
+		err = runTUI(os.Args[2:])
 	default:
 		fmt.Fprint(os.Stderr, usage)
 		os.Exit(2)
@@ -133,11 +137,22 @@ func runBlame(args []string) error {
 		if e.Stale {
 			status = "stale"
 		}
-		fmt.Printf("%-8s %s:%d → %s (%s)\n         %s\n", status, e.File, e.Line, e.ReqID, e.Kind, r.Title)
+		sym := e.Symbol
+		if sym == "" {
+			sym = "(file-level)"
+		}
+		fmt.Printf("%-8s %s:%d %s → %s\n         %s\n", status, e.File, e.Line, sym, e.ReqID, r.Title)
 	}
 	for _, m := range rep.Result.DanglingIn(file) {
 		found = true
 		fmt.Printf("%-8s %s:%d → %s (%s)\n         no such requirement\n", "dangling", m.File, m.Line, m.ReqID, m.Kind)
+	}
+	// exported symbols with no marker — the dead-code radar
+	for _, s := range rep.Result.Unlinked {
+		if index.FileMatch(s.File, file) {
+			found = true
+			fmt.Printf("%-8s %s:%d %s → no requirement\n", "unlinked", s.File, s.Line, s.Name)
+		}
 	}
 	if !found {
 		fmt.Println("no markers in", file)

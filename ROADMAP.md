@@ -41,15 +41,20 @@ single static binary. Everything marked **(MVP)** below.
 
 ### `pkg/index` — code side
 
-- **(MVP)** File-level index only. blame annotates files, not symbols —
-  good enough for a gate. `[size:S]`
+- ~~**(MVP)** File-level index only~~ ✅ superseded — `index.Scan` now
+  extracts symbols natively (go AST, py/ts regex), `SymbolBelow` binds a
+  marker to the declaration under it. File-level remains the fallback for
+  unindexed languages.
+- ~~Symbol extraction seam~~ ✅ — `pkg/index` owns `Symbol{Name,Kind,File,
+  Line,Exported}`; `pkg/mine` consumes it. SCIP ingestion can now replace
+  the native extractors behind the same `Index` shape.
 - SCIP consumer — read `index.scip` produced by language indexers
-  (scip-go, scip-python, scip-typescript) → symbol-level locations without
-  writing a single parser. `[size:M]`
+  (scip-go, scip-python, scip-typescript) → richer symbol data (refs,
+  docs) without writing a single parser. `[size:M]`
 - tree-sitter via WASM (wazero, no CGO) — own grammars, symbol extraction
   as fallback when no SCIP indexer exists. `[size:L]`
-- Dead-code radar — symbols reachable in index with no requirement link.
-  Advisory only, never gate. `[size:M]`
+- ~~Dead-code radar~~ ✅ — exported symbols with no marker surface as
+  `Result.Unlinked` and in `blame`. Advisory only, never gate. `[size:M]`
 
 ### `pkg/graph` — the join
 
@@ -66,8 +71,8 @@ single static binary. Everything marked **(MVP)** below.
 - ~~**(MVP)** `check`~~ ✅ — gate fails on dangling/stale only, coverage
   advisory (`--min-coverage` opt-in). SARIF output still open. `[size:M]`
 - ~~**(MVP)** `coverage`~~ ✅ — % + per-requirement table. `[size:S]`
-- ~~**(MVP)** `blame <file>`~~ ✅ — annotations in a file with ok/stale/
-  dangling status + requirement titles.
+- ~~**(MVP)** `blame <file>`~~ ✅ — symbol-level: shows the declaration
+  each marker binds to, plus unlinked symbols in the file.
 - ~~**(MVP)** `map <req>` / `map <file>`~~ ✅ — bidirectional lookup,
   basename suffix matching. `[size:S]`
 - ~~`serve`~~ ✅ — MCP stdio server, hand-rolled JSON-RPC (zero deps):
@@ -75,8 +80,9 @@ single static binary. Everything marked **(MVP)** below.
   `strata_stale`, `strata_dangling`. Fresh graph per call.
 - `serve` symbol-level tools — `req_for_symbol` once SCIP lands.
   `[size:M]`
-- `tui` — bubbletea explorer: req→symbols→tests navigation, stale-refs
-  fix flow. `[size:M]` (post-MVP, needs the graph stable)
+- ~~`tui`~~ ✅ — bubbletea explorer: req list (uncovered first) + detail
+  pane with scenarios and bound symbols, stale/dangling/unlinked stats.
+  Stale-refs fix flow still open. `[size:M]`
 - `badge` — emit shields.io endpoint JSON for README coverage badges.
   `[size:S]` `[good-first-issue]`
 

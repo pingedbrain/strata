@@ -5,24 +5,27 @@
 Two binaries, one requirement graph:
 
 - **`spec-blame`** — verifies spec→code: `git blame`, but every marked
-  region answers "which requirement justifies me". CI gate for dangling
-  refs, stale spec bindings, uncovered requirements.
+  *symbol* answers "which requirement justifies me". CI gate for dangling
+  refs, stale spec bindings, uncovered requirements — plus a Bubbletea
+  TUI and an MCP server for agents.
 - **`spec-excavate`** — mines code→spec: scans a brownfield repo and
   proposes the `spec.md` it should have had, plus suggested markers.
 
 strata never invents a spec format — it ingests the ones you already use
 (openspec, spec-kit, Gherkin, markdown-with-IDs).
 
-> Status: early. `spec-blame check|coverage|blame|map` works on openspec
-> specs today. See [ROADMAP.md](ROADMAP.md) and [EXPLORATION.md](EXPLORATION.md).
+> Status: early. `spec-blame check|coverage|blame|map|sync|serve|tui`
+> works on openspec specs today — symbol-level on Go, Python and
+> TypeScript. See [ROADMAP.md](ROADMAP.md) and [EXPLORATION.md](EXPLORATION.md).
 
 ## Try it
 
 ```bash
 go run ./cmd/spec-blame check --root examples/quickstart    # passes
 go run ./cmd/spec-blame check --root examples/drift         # fails: stale + dangling
-go run ./cmd/spec-blame blame --root examples/drift main.go
+go run ./cmd/spec-blame blame --root examples/drift main.go # symbol-level
 go run ./cmd/spec-blame map   --root examples/drift auth/token-expiry
+go run ./cmd/spec-blame tui   --root examples/drift         # interactive
 ```
 
 Mark code with a comment in any comment style:

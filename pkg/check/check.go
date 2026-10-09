@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/pingedbrain/strata/pkg/graph"
+	"github.com/pingedbrain/strata/pkg/index"
 	"github.com/pingedbrain/strata/pkg/ingest"
 	"github.com/pingedbrain/strata/pkg/markers"
 	"github.com/pingedbrain/strata/pkg/reqgraph"
@@ -26,6 +27,7 @@ type Report struct {
 	Formats []string
 	Graph   *reqgraph.Graph
 	Result  *graph.Result
+	Index   *index.Index
 	MinCov  float64
 }
 
@@ -43,7 +45,14 @@ func Run(fsys fs.FS, opts Options) (*Report, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Report{Formats: formats, Graph: g, Result: graph.Join(g, ms), MinCov: opts.MinCoverage}, nil
+	idx, err := index.Scan(fsys, codeOnly)
+	if err != nil {
+		return nil, err
+	}
+	return &Report{
+		Formats: formats, Graph: g, Index: idx,
+		Result: graph.Join(g, ms, idx), MinCov: opts.MinCoverage,
+	}, nil
 }
 
 // GateFailures lists the objectively-broken findings. Empty = pass.

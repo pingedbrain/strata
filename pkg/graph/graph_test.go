@@ -2,7 +2,9 @@ package graph
 
 import (
 	"testing"
+	"testing/fstest"
 
+	"github.com/pingedbrain/strata/pkg/index"
 	"github.com/pingedbrain/strata/pkg/markers"
 	"github.com/pingedbrain/strata/pkg/reqgraph"
 )
@@ -19,7 +21,7 @@ func TestJoinClassifiesEdges(t *testing.T) {
 		{Kind: markers.Spec, ReqID: "GHOST", File: "b.go", Line: 2},      // dangling
 		{Kind: markers.Spec, ReqID: "A-1", Hash: "ffffff", File: "c.go"}, // stale
 	}
-	res := Join(g, ms)
+	res := Join(g, ms, nil)
 
 	if len(res.Dangling) != 1 || res.Dangling[0].ReqID != "GHOST" {
 		t.Fatalf("dangling: %+v", res.Dangling)
@@ -51,7 +53,7 @@ func TestLookups(t *testing.T) {
 		{Kind: markers.Spec, ReqID: "A-1", File: "lib.go", Line: 2},
 		{Kind: markers.Spec, ReqID: "NOPE", File: "cmd/x/main.go", Line: 9},
 	}
-	res := Join(g, ms)
+	res := Join(g, ms, nil)
 
 	if got := res.EdgesFor("A-1"); len(got) != 2 {
 		t.Fatalf("EdgesFor: %+v", got)
@@ -67,5 +69,33 @@ func TestLookups(t *testing.T) {
 	}
 	if got := res.EdgesIn("nope.go"); len(got) != 0 {
 		t.Fatalf("EdgesIn should not match: %+v", got)
+	}
+}
+
+func TestJoinResolvesSymbols(t *testing.T) {
+	fsys := fstest.MapFS{
+		"a.go": &fstest.MapFile{Data: []byte(`package x
+
+func Validate() {}
+func Other() {}
+`)},
+	}
+	idx, err := index.Scan(fsys, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g := reqgraph.New()
+	_ = g.Add(&reqgraph.Requirement{ID: "A-1"})
+
+	ms := []markers.Marker{
+		{Kind: markers.Spec, ReqID: "A-1", File: "a.go", Line: 2}, // above Validate
+	}
+	res := Join(g, ms, idx)
+	if res.Edges[0].Symbol != "Validate" {
+		t.Fatalf("marker should bind to Validate, got %+v", res.Edges[0])
+	}
+	// Other() has no marker → unlinked
+	if len(res.Unlinked) != 1 || res.Unlinked[0].Name != "Other" {
+		t.Fatalf("unlinked: %+v", res.Unlinked)
 	}
 }

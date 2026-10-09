@@ -1,4 +1,4 @@
-package mine
+package index
 
 import (
 	"bufio"
@@ -6,8 +6,6 @@ import (
 	"path"
 	"regexp"
 	"strings"
-
-	"github.com/pingedbrain/strata/pkg/index"
 )
 
 type tsExtractor struct{}
@@ -28,21 +26,22 @@ func (tsExtractor) isTestFile(p string) bool {
 		strings.Contains(p, "__tests__/")
 }
 
-func (tsExtractor) parse(data []byte, filename string) (exports, tests []index.Symbol) {
+func (tsExtractor) parse(data []byte, filename string) (exports, tests []Symbol) {
 	testFile := tsExtractor{}.isTestFile(filename)
 	sc := bufio.NewScanner(bytes.NewReader(data))
+	sc.Buffer(make([]byte, 64*1024), 1024*1024)
 	line := 0
 	for sc.Scan() {
 		line++
 		text := sc.Text()
 		if testFile {
 			if m := tsTest.FindStringSubmatch(text); m != nil {
-				tests = append(tests, index.Symbol{Name: m[1], Kind: "test", File: filename, Line: line})
+				tests = append(tests, Symbol{Name: m[1], Kind: "test", File: filename, Line: line})
 			}
 			continue
 		}
 		if m := tsExport.FindStringSubmatch(text); m != nil {
-			exports = append(exports, index.Symbol{Name: m[1], Kind: "func", File: filename, Line: line})
+			exports = append(exports, Symbol{Name: m[1], Kind: "func", File: filename, Line: line, Exported: true})
 		}
 	}
 	return exports, tests

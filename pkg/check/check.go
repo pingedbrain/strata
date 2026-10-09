@@ -24,6 +24,10 @@ type Options struct {
 	// JUnit lists test-result XML files (relative to the scanned root)
 	// to merge into Verified/Failing requirement status.
 	JUnit []string
+	// SCIP is an optional path to an index.scip file (relative to the
+	// scanned root). Empty means auto-detect "index.scip" at the root;
+	// richer indexer data overlays the native symbol extraction.
+	SCIP string
 }
 
 // Report is the full gate result.
@@ -52,6 +56,23 @@ func Run(fsys fs.FS, opts Options) (*Report, error) {
 	idx, err := index.Scan(fsys, codeOnly)
 	if err != nil {
 		return nil, err
+	}
+	scipPath := opts.SCIP
+	if scipPath == "" {
+		if _, err := fs.Stat(fsys, "index.scip"); err == nil {
+			scipPath = "index.scip"
+		}
+	}
+	if scipPath != "" {
+		data, err := fs.ReadFile(fsys, scipPath)
+		if err != nil {
+			return nil, fmt.Errorf("scip: %w", err)
+		}
+		si, err := index.LoadSCIP(data)
+		if err != nil {
+			return nil, fmt.Errorf("scip %s: %w", scipPath, err)
+		}
+		idx.Overlay(si)
 	}
 	res := graph.Join(g, ms, idx)
 	for _, jp := range opts.JUnit {

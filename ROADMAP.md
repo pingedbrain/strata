@@ -48,9 +48,12 @@ single static binary. Everything marked **(MVP)** below.
 - ~~Symbol extraction seam~~ ✅ — `pkg/index` owns `Symbol{Name,Kind,File,
   Line,Exported}`; `pkg/mine` consumes it. SCIP ingestion can now replace
   the native extractors behind the same `Index` shape.
-- SCIP consumer — read `index.scip` produced by language indexers
-  (scip-go, scip-python, scip-typescript) → richer symbol data (refs,
-  docs) without writing a single parser. `[size:M]`
+- ~~SCIP consumer~~ ✅ — `pkg/index.LoadSCIP` decodes `index.scip`
+  (protobuf wire, zero deps), overlays onto native extraction.
+  Auto-detects `index.scip` at root or `--scip <path>`. Validated
+  against real scip-go output.
+- SCIP refs/relationships — we only consume definitions today;
+  references could power usage-based drift hints. `[size:M]`
 - tree-sitter via WASM (wazero, no CGO) — own grammars, symbol extraction
   as fallback when no SCIP indexer exists. `[size:L]`
 - ~~Dead-code radar~~ ✅ — exported symbols with no marker surface as

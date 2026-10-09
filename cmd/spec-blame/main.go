@@ -73,10 +73,11 @@ func loadRepo(args []string) (*check.Report, string, string, error) {
 	minCov := fs.Float64("min-coverage", 0, "minimum coverage fraction")
 	format := fs.String("format", "text", "output format: text | sarif")
 	junit := fs.String("junit", "", "JUnit XML test results file (inside --root)")
+	scip := fs.String("scip", "", "SCIP index file (inside --root); default: auto-detect index.scip")
 	if err := fs.Parse(args); err != nil {
 		return nil, "", "", err
 	}
-	opts := check.Options{MinCoverage: *minCov}
+	opts := check.Options{MinCoverage: *minCov, SCIP: *scip}
 	if *junit != "" {
 		opts.JUnit = []string{*junit}
 	}

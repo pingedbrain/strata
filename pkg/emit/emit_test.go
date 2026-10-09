@@ -17,7 +17,7 @@ func TestSpecRendersOpenSpecShape(t *testing.T) {
 			Tests:    []index.Symbol{{Name: "TestValidateTokenRejectsExpired"}},
 		}},
 	}
-	out := Spec(cap)
+	out := Spec(cap, nil)
 	for _, want := range []string{
 		"# Auth Specification",
 		"### Requirement: Validate Token",
@@ -28,6 +28,38 @@ func TestSpecRendersOpenSpecShape(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Fatalf("spec missing %q:\n%s", want, out)
 		}
+	}
+}
+
+func TestSpecUsesDocThenEnrich(t *testing.T) {
+	caps := []mine.Capability{{
+		Name: "auth",
+		Candidates: []mine.Candidate{
+			{Name: "Validate", Kind: "func", Doc: "Rejects tokens older than 1h.",
+				Evidence: index.Symbol{File: "a.go", Line: 5}},
+			{Name: "Refresh", Kind: "func",
+				Evidence: index.Symbol{File: "a.go", Line: 20}},
+		},
+	}}
+	called := 0
+	out := Spec(caps[0], func(prompt string) string {
+		called++
+		if !strings.Contains(prompt, "Refresh") {
+			t.Fatalf("prompt missing symbol name:\n%s", prompt)
+		}
+		return "Issues a fresh token for a live session."
+	})
+	if called != 1 {
+		t.Fatalf("enrich should run once (only undoc'd symbol), ran %d", called)
+	}
+	if !strings.Contains(out, "Rejects tokens older than 1h.") {
+		t.Fatalf("doc comment not used:\n%s", out)
+	}
+	if !strings.Contains(out, "Issues a fresh token for a live session.") {
+		t.Fatalf("enrich output not used:\n%s", out)
+	}
+	if strings.Contains(out, "TODO: describe") {
+		t.Fatalf("TODO should be gone:\n%s", out)
 	}
 }
 
@@ -66,7 +98,7 @@ func TestSameNameCollisionGetsFileStem(t *testing.T) {
 	if ms[1].Comment != "# @spec effects/reset-apply" {
 		t.Fatalf("collision not disambiguated: %q", ms[1].Comment)
 	}
-	spec := Spec(caps[0])
+	spec := Spec(caps[0], nil)
 	if !strings.Contains(spec, "### Requirement: Reset Apply") {
 		t.Fatalf("spec title not disambiguated:\n%s", spec)
 	}

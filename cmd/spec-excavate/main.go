@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -25,6 +26,13 @@ commands:
 
 common flags:
   --root      repo root (default ".")
+
+propose flags:
+  --write         write spec.md files under openspec/specs/
+  --enrich-cmd    external command that fills requirement descriptions:
+                  prompt goes to stdin, one-sentence reply on stdout
+                  (e.g. "claude -p", "gh models run", "ollama run llama3")
+  --dump-prompts  print the enrich prompts instead of running a command
 `
 
 func main() {
@@ -50,19 +58,29 @@ func main() {
 	}
 }
 
-func repo(args []string) (root string, caps []mine.Capability, write bool, err error) {
+type opts struct {
+	root        string
+	write       bool
+	enrichCmd   string
+	dumpPrompts bool
+}
+
+func repo(args []string) (opts, []mine.Capability, error) {
 	fs := flag.NewFlagSet("spec-excavate", flag.ContinueOnError)
-	rootF := fs.String("root", ".", "repo root")
-	writeF := fs.Bool("write", false, "apply changes (propose/suggest-markers)")
+	o := opts{}
+	fs.StringVar(&o.root, "root", ".", "repo root")
+	fs.BoolVar(&o.write, "write", false, "apply changes (propose/suggest-markers)")
+	fs.StringVar(&o.enrichCmd, "enrich-cmd", "", "external LLM command for descriptions")
+	fs.BoolVar(&o.dumpPrompts, "dump-prompts", false, "print enrich prompts and exit")
 	if err := fs.Parse(args); err != nil {
-		return "", nil, false, err
+		return o, nil, err
 	}
-	caps, err = mine.Scan(os.DirFS(*rootF))
-	return *rootF, caps, *writeF, err
+	caps, err := mine.Scan(os.DirFS(o.root))
+	return o, caps, err
 }
 
 func runScan(args []string) error {
-	_, caps, _, err := repo(args)
+	_, caps, err := repo(args)
 	if err != nil {
 		return err
 	}
@@ -83,17 +101,44 @@ func runScan(args []string) error {
 }
 
 func runPropose(args []string) error {
-	root, caps, write, err := repo(args)
+	o, caps, err := repo(args)
 	if err != nil {
 		return err
 	}
+	if o.dumpPrompts {
+		for _, c := range caps {
+			for i, cand := range c.Candidates {
+				if cand.Doc != "" {
+					continue // doc comment already fills the description
+				}
+				fmt.Printf("=== %s → %s ===\n%s\n\n", c.Name, cand.Name,
+					emit.EnrichPrompt(c.Name, emit.ReqTitle(c, i), cand))
+			}
+		}
+		return nil
+	}
+	var enrich func(string) string
+	if o.enrichCmd != "" {
+		enrich = func(prompt string) string {
+			parts := strings.Fields(o.enrichCmd)
+			cmd := exec.Command(parts[0], parts[1:]...)
+			cmd.Dir = o.root
+			cmd.Stdin = strings.NewReader(prompt)
+			out, err := cmd.Output()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "enrich-cmd failed: %v\n", err)
+				return ""
+			}
+			return strings.TrimSpace(string(out))
+		}
+	}
 	for _, c := range caps {
-		spec := emit.Spec(c)
-		if !write {
+		spec := emit.Spec(c, enrich)
+		if !o.write {
 			fmt.Printf("=== openspec/specs/%s/spec.md ===\n%s\n", c.Name, spec)
 			continue
 		}
-		p := filepath.Join(root, "openspec", "specs", c.Name, "spec.md")
+		p := filepath.Join(o.root, "openspec", "specs", c.Name, "spec.md")
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 			return err
 		}
@@ -106,12 +151,12 @@ func runPropose(args []string) error {
 }
 
 func runSuggestMarkers(args []string) error {
-	root, caps, write, err := repo(args)
+	o, caps, err := repo(args)
 	if err != nil {
 		return err
 	}
 	sugs := emit.SuggestMarkers(caps)
-	if !write {
+	if !o.write {
 		for _, s := range sugs {
 			fmt.Printf("%s:%d → insert: %s\n", s.File, s.Line, s.Comment)
 		}
@@ -127,7 +172,7 @@ func runSuggestMarkers(args []string) error {
 		byFile[s.File] = append(byFile[s.File], s)
 	}
 	for _, f := range order {
-		p := filepath.Join(root, f)
+		p := filepath.Join(o.root, f)
 		data, err := os.ReadFile(p)
 		if err != nil {
 			return err

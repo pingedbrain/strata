@@ -13,6 +13,8 @@ type tsExtractor struct{}
 var (
 	tsExport = regexp.MustCompile(`^export\s+(?:async\s+)?(?:default\s+)?(?:function|class|const|let|interface|type|enum)\s+(\w+)`)
 	tsTest   = regexp.MustCompile(`^\s*(?:it|test|describe)\(\s*['"]([^'"]+)`)
+	tsCmt    = regexp.MustCompile(`^\s*//\s?(.*)`)
+	tsCmtBlk = regexp.MustCompile(`^\s*/\*+\s?(.*?)\s*\*/`)
 	// cucumber-js: Given("text", fn) or Given(/^regex$/, fn)
 	tsStepDef = regexp.MustCompile(`(?:^|[^\w])(?:Given|When|Then|Step)\(\s*(?:['"]([^'"]+)['"]|/([^/]+)/)`)
 )
@@ -33,6 +35,7 @@ func (tsExtractor) parse(data []byte, filename string) (exports, tests, stepdefs
 	sc := bufio.NewScanner(bytes.NewReader(data))
 	sc.Buffer(make([]byte, 64*1024), 1024*1024)
 	line := 0
+	var cmtBuf []string // consecutive comment lines directly above a decl
 	for sc.Scan() {
 		line++
 		text := sc.Text()
@@ -52,7 +55,14 @@ func (tsExtractor) parse(data []byte, filename string) (exports, tests, stepdefs
 			continue
 		}
 		if m := tsExport.FindStringSubmatch(text); m != nil {
-			exports = append(exports, Symbol{Name: m[1], Kind: "func", File: filename, Line: line, Exported: true})
+			exports = append(exports, Symbol{Name: m[1], Kind: "func", File: filename, Line: line, Exported: true, Doc: joinDoc(cmtBuf, "")})
+			cmtBuf = cmtBuf[:0]
+		} else if m := tsCmt.FindStringSubmatch(text); m != nil {
+			cmtBuf = append(cmtBuf, m[1])
+		} else if m := tsCmtBlk.FindStringSubmatch(text); m != nil {
+			cmtBuf = append(cmtBuf, m[1]) // single-line /* */ or /** */ blocks
+		} else if strings.TrimSpace(text) != "" {
+			cmtBuf = cmtBuf[:0]
 		}
 	}
 	return exports, tests, stepdefs

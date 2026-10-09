@@ -15,7 +15,8 @@ type Symbol struct {
 	Kind     string // "func", "type", "method", "test"
 	File     string
 	Line     int
-	Exported bool // public surface; unexported symbols bind markers but aren't requirement candidates
+	Exported bool   // public surface; unexported symbols bind markers but aren't requirement candidates
+	Doc      string // doc comment/docstring above the declaration, if any
 }
 
 // Index maps files to their symbols, plus test symbols and BDD

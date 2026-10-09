@@ -17,7 +17,7 @@ func (goExtractor) isTestFile(p string) bool {
 
 func (goExtractor) parse(data []byte, filename string) (exports, tests, stepdefs []Symbol) {
 	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, filename, data, parser.SkipObjectResolution)
+	f, err := parser.ParseFile(fset, filename, data, parser.SkipObjectResolution|parser.ParseComments)
 	if err != nil {
 		return nil, nil, nil
 	}
@@ -43,7 +43,7 @@ func (goExtractor) parse(data []byte, filename string) (exports, tests, stepdefs
 				name = recv + "." + name
 				exported = ast.IsExported(recv) && ast.IsExported(d.Name.Name)
 			}
-			exports = append(exports, Symbol{Name: name, Kind: kind, File: filename, Line: pos.Line, Exported: exported})
+			exports = append(exports, Symbol{Name: name, Kind: kind, File: filename, Line: pos.Line, Exported: exported, Doc: docText(d.Doc)})
 		case *ast.GenDecl:
 			if testFile || d.Tok != token.TYPE {
 				continue
@@ -51,11 +51,22 @@ func (goExtractor) parse(data []byte, filename string) (exports, tests, stepdefs
 			for _, sp := range d.Specs {
 				ts := sp.(*ast.TypeSpec)
 				pos := fset.Position(ts.Pos())
-				exports = append(exports, Symbol{Name: ts.Name.Name, Kind: "type", File: filename, Line: pos.Line, Exported: ast.IsExported(ts.Name.Name)})
+				doc := ts.Doc
+				if doc == nil {
+					doc = d.Doc // doc comment sits on the `type (...)` decl
+				}
+				exports = append(exports, Symbol{Name: ts.Name.Name, Kind: "type", File: filename, Line: pos.Line, Exported: ast.IsExported(ts.Name.Name), Doc: docText(doc)})
 			}
 		}
 	}
 	return exports, tests, nil
+}
+
+func docText(g *ast.CommentGroup) string {
+	if g == nil {
+		return ""
+	}
+	return strings.TrimSpace(g.Text())
 }
 
 func recvName(e ast.Expr) string {

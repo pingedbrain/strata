@@ -18,6 +18,7 @@ import (
 type Candidate struct {
 	Name     string         // symbol name, becomes the requirement title seed
 	Kind     string         // "func", "type", "method", ...
+	Doc      string         // doc comment/docstring, seeds the description
 	Evidence index.Symbol   // where it lives
 	Tests    []index.Symbol // tests that plausibly cover it (name-matched)
 }
@@ -42,7 +43,7 @@ func Scan(fsys fs.FS) ([]Capability, error) {
 				continue // public surface = requirement seeds
 			}
 			cap := capabilityOf(s.File)
-			byCap[cap] = append(byCap[cap], Candidate{Name: s.Name, Kind: s.Kind, Evidence: s})
+			byCap[cap] = append(byCap[cap], Candidate{Name: s.Name, Kind: s.Kind, Doc: s.Doc, Evidence: s})
 		}
 	}
 	// link tests to candidates globally (a tests/ dir tests other dirs)

@@ -40,6 +40,25 @@ step synthesize `verifies` edges — no `@spec` marker needed. Pass
 `--junit results.xml` and scenario names (`test_valid_login`) mark the
 requirement `verified`/`failing` (see `examples/multiformat`).
 
+## Excavating specs from brownfield
+
+```bash
+spec-excavate scan    --root .            # candidates by capability
+spec-excavate propose --root .            # openspec skeletons to stdout
+spec-excavate propose --root . --write    # write openspec/specs/*/spec.md
+spec-excavate suggest-markers --root .    # @spec annotations to review
+```
+
+Doc comments/docstrings become requirement descriptions automatically.
+For symbols without docs, `propose` can ask an external assistant —
+provider-agnostic, prompt on stdin, one sentence on stdout:
+
+```bash
+spec-excavate propose --root . --enrich-cmd "claude -p"
+spec-excavate propose --root . --enrich-cmd "ollama run llama3"
+spec-excavate propose --root . --dump-prompts   # feed prompts manually
+```
+
 Mark code with a comment in any comment style:
 
 ```go

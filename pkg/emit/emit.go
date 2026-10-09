@@ -35,13 +35,21 @@ func reqTitles(c mine.Capability) []string {
 	return titles
 }
 
+// ReqTitle returns the requirement title for candidate i — the same
+// disambiguation Spec applies.
+func ReqTitle(c mine.Capability, i int) string { return reqTitles(c)[i] }
+
 // reqID is the full marker-facing ID for a candidate title.
 func reqID(capName, title string) string {
 	return capName + "/" + reqgraph.Slug(title)
 }
 
 // Spec renders an openspec-compatible spec.md draft for one capability.
-func Spec(c mine.Capability) string {
+// Descriptions come from the symbol's doc comment when present; when
+// absent and enrich is non-nil it is invoked with EnrichPrompt's prompt
+// and its (trimmed) output becomes the description — the intended hook
+// for `spec-excavate propose --enrich-cmd`. Otherwise a TODO stands in.
+func Spec(c mine.Capability, enrich func(prompt string) string) string {
 	titles := reqTitles(c)
 	var b strings.Builder
 	fmt.Fprintf(&b, "# %s Specification\n\n## Requirements\n\n", title(c.Name))
@@ -50,14 +58,39 @@ func Spec(c mine.Capability) string {
 		if kind == "" {
 			kind = "symbol"
 		}
-		fmt.Fprintf(&b, "### Requirement: %s\n", titles[i])
-		fmt.Fprintf(&b, "TODO: describe the behavior this %s must guarantee.\n\n", kind)
+		desc := cand.Doc
+		if desc == "" && enrich != nil {
+			desc = strings.TrimSpace(enrich(EnrichPrompt(c.Name, titles[i], cand)))
+		}
+		if desc == "" {
+			desc = fmt.Sprintf("TODO: describe the behavior this %s must guarantee.", kind)
+		}
+		fmt.Fprintf(&b, "### Requirement: %s\n%s\n\n", titles[i], desc)
 		fmt.Fprintf(&b, "_Evidence: %s:%d_\n\n", cand.Evidence.File, cand.Evidence.Line)
 		for _, t := range cand.Tests {
 			fmt.Fprintf(&b, "#### Scenario: %s\n", title(testTitle(t.Name)))
 			b.WriteString("- **WHEN** TODO\n- **THEN** TODO\n\n")
 		}
 	}
+	return b.String()
+}
+
+// EnrichPrompt builds the question an external assistant should answer
+// to write a requirement description. Provider-agnostic: the caller
+// pipes it to whatever command the user configured.
+func EnrichPrompt(capName, title string, cand mine.Candidate) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "In one sentence, describe the behavior this %s must guarantee.\n", cand.Kind)
+	fmt.Fprintf(&b, "Requirement: %s (capability %q)\n", title, capName)
+	fmt.Fprintf(&b, "Implementation: %s at %s:%d\n", cand.Name, cand.Evidence.File, cand.Evidence.Line)
+	if len(cand.Tests) > 0 {
+		names := make([]string, len(cand.Tests))
+		for i, t := range cand.Tests {
+			names[i] = t.Name
+		}
+		fmt.Fprintf(&b, "Covered by tests: %s\n", strings.Join(names, ", "))
+	}
+	b.WriteString("Reply with the sentence only — no preamble, no quotes.")
 	return b.String()
 }
 

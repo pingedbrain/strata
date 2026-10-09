@@ -11,9 +11,11 @@ import (
 type pyExtractor struct{}
 
 var (
-	pyDef   = regexp.MustCompile(`^(?:async )?def (\w+)`)
-	pyClass = regexp.MustCompile(`^class (\w+)`)
-	pyTest  = regexp.MustCompile(`^\s*(?:async )?def (test_\w+)`)
+	pyDef    = regexp.MustCompile(`^(?:async )?def (\w+)`)
+	pyClass  = regexp.MustCompile(`^class (\w+)`)
+	pyTest   = regexp.MustCompile(`^\s*(?:async )?def (test_\w+)`)
+	pyDocStr = regexp.MustCompile(`^\s*(?:"""(.*?)"""|'''(.*?)'''|"(.*?)"|'(.*?)')`)
+	pyCmt    = regexp.MustCompile(`^\s*#\s?(.*)`)
 	// pytest-bdd: @given("..."), @when(...), @then(parsers.parse("..."))
 	pyStepDef = regexp.MustCompile(`^\s*@(?:given|when|then|step)\s*\(.*['"]([^'"]+)['"]`)
 	// pytest-bdd: scenarios("features/login.feature") binds a whole feature
@@ -33,6 +35,8 @@ func (pyExtractor) parse(data []byte, filename string) (exports, tests, stepdefs
 	sc := bufio.NewScanner(bytes.NewReader(data))
 	sc.Buffer(make([]byte, 64*1024), 1024*1024)
 	line := 0
+	var cmtBuf []string // consecutive comment lines directly above a decl
+	awaitDoc := -1      // index into exports of a decl awaiting its docstring
 	for sc.Scan() {
 		line++
 		text := sc.Text()
@@ -48,11 +52,46 @@ func (pyExtractor) parse(data []byte, filename string) (exports, tests, stepdefs
 			}
 			continue
 		}
+		// docstring on the line(s) right after a def/class
+		if awaitDoc >= 0 {
+			if m := pyDocStr.FindStringSubmatch(text); m != nil {
+				for _, g := range m[1:] {
+					if g != "" {
+						exports[awaitDoc].Doc = joinDoc(cmtBuf, g)
+						break
+					}
+				}
+				awaitDoc = -1
+				cmtBuf = cmtBuf[:0]
+				continue
+			}
+			if strings.TrimSpace(text) == "" || strings.HasPrefix(text, " ") || strings.HasPrefix(text, "\t") {
+				continue // blank or body line — docstring may still come
+			}
+			awaitDoc = -1
+		}
 		if m := pyDef.FindStringSubmatch(text); m != nil {
-			exports = append(exports, Symbol{Name: m[1], Kind: "func", File: filename, Line: line, Exported: !strings.HasPrefix(m[1], "_")})
+			exports = append(exports, Symbol{Name: m[1], Kind: "func", File: filename, Line: line, Exported: !strings.HasPrefix(m[1], "_"), Doc: joinDoc(cmtBuf, "")})
+			cmtBuf = cmtBuf[:0]
+			awaitDoc = len(exports) - 1
 		} else if m := pyClass.FindStringSubmatch(text); m != nil {
-			exports = append(exports, Symbol{Name: m[1], Kind: "type", File: filename, Line: line, Exported: !strings.HasPrefix(m[1], "_")})
+			exports = append(exports, Symbol{Name: m[1], Kind: "type", File: filename, Line: line, Exported: !strings.HasPrefix(m[1], "_"), Doc: joinDoc(cmtBuf, "")})
+			cmtBuf = cmtBuf[:0]
+			awaitDoc = len(exports) - 1
+		} else if m := pyCmt.FindStringSubmatch(text); m != nil {
+			cmtBuf = append(cmtBuf, m[1])
+		} else if strings.TrimSpace(text) != "" {
+			cmtBuf = cmtBuf[:0] // non-comment line breaks the comment block
 		}
 	}
 	return exports, tests, stepdefs
+}
+
+// joinDoc merges leading comment lines with a docstring line.
+func joinDoc(comments []string, docstr string) string {
+	parts := append([]string{}, comments...)
+	if docstr != "" {
+		parts = append(parts, strings.TrimSpace(docstr))
+	}
+	return strings.TrimSpace(strings.Join(parts, " "))
 }

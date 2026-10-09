@@ -102,9 +102,11 @@ single static binary. Everything marked **(MVP)** below.
 
 - `scan` — walk repo: test names, exported API surface, README/docs,
   config → candidate requirement list. `[size:L]`
-- `propose` — draft `openspec/specs/**/spec.md` from candidates; LLM via
-  any OpenAI-compatible endpoint, **optional** — deterministic skeleton
-  without it (req IDs + titles from API/test names). `[size:L]`
+- ~~`propose`~~ ✅ — drafts `openspec/specs/**/spec.md` from candidates.
+  Doc comments/docstrings fill descriptions automatically; `--enrich-cmd`
+  pipes a prompt to any external assistant (`claude -p`, `ollama`, `gh
+  models`) for the rest — provider-agnostic, optional, never in the gate.
+  `--dump-prompts` for copy-paste flows. `[size:L]`
 - `suggest-markers` — propose `@spec` annotations for existing symbols;
   writes a diff the human reviews. `[size:M]`
 - Git-history mining — hot files + change coupling inform requirement

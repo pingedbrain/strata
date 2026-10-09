@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"path"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/pingedbrain/strata/pkg/reqgraph"
@@ -23,7 +24,6 @@ var (
 	reReq      = regexp.MustCompile(`^###\s+Requirement:\s*(.+?)\s*$`)
 	reScenario = regexp.MustCompile(`^####\s+Scenario:\s*(.+?)\s*$`)
 	reStep     = regexp.MustCompile(`^[-*]\s+(?:\*\*)?(?:WHEN|THEN|AND|GIVEN)(?:\*\*)?\s+(?::\s*)?(.+?)\s*$`)
-	reSlug     = regexp.MustCompile(`[^a-z0-9]+`)
 )
 
 func (*openspecAdapter) Name() string { return "openspec" }
@@ -71,9 +71,9 @@ func parseSpecMD(g *reqgraph.Graph, cap, file string, data []byte) error {
 		if m := reReq.FindStringSubmatch(text); m != nil {
 			flush()
 			cur = &reqgraph.Requirement{
-				ID:     cap + "/" + slug(m[1]),
+				ID:     cap + "/" + reqgraph.Slug(m[1]),
 				Title:  m[1],
-				Source: file + ":" + itoa(line),
+				Source: file + ":" + strconv.Itoa(line),
 			}
 			if err := g.Add(cur); err != nil {
 				return err
@@ -100,22 +100,4 @@ func parseSpecMD(g *reqgraph.Graph, cap, file string, data []byte) error {
 	}
 	flush()
 	return s.Err()
-}
-
-func slug(s string) string {
-	return strings.Trim(reSlug.ReplaceAllString(strings.ToLower(s), "-"), "-")
-}
-
-func itoa(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	var b [8]byte
-	i := len(b)
-	for n > 0 {
-		i--
-		b[i] = byte('0' + n%10)
-		n /= 10
-	}
-	return string(b[i:])
 }

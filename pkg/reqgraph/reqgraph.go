@@ -56,6 +56,15 @@ func (g *Graph) IDs() []string { return g.order }
 
 var ws = regexp.MustCompile(`\s+`)
 
+var slugRe = regexp.MustCompile(`[^a-z0-9]+`)
+
+// Slug converts a requirement title into the ID form markers reference:
+// "Token expiry" → "token-expiry". Ingest adapters and emit share this so
+// generated specs and code markers agree on IDs.
+func Slug(s string) string {
+	return strings.Trim(slugRe.ReplaceAllString(strings.ToLower(s), "-"), "-")
+}
+
 // AcceptanceHash returns the short hash bound into @spec markers
 // (the "#a3f2b1" suffix). Hashing normalized text — not raw bytes —
 // keeps the hash stable across whitespace-only edits.

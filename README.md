@@ -13,8 +13,34 @@ Two binaries, one requirement graph:
 strata never invents a spec format — it ingests the ones you already use
 (openspec, spec-kit, Gherkin, markdown-with-IDs).
 
-> Status: scaffold. See [ROADMAP.md](ROADMAP.md) and
-> [EXPLORATION.md](EXPLORATION.md).
+> Status: early. `spec-blame check|coverage|blame|map` works on openspec
+> specs today. See [ROADMAP.md](ROADMAP.md) and [EXPLORATION.md](EXPLORATION.md).
+
+## Try it
+
+```bash
+go run ./cmd/spec-blame check --root examples/quickstart    # passes
+go run ./cmd/spec-blame check --root examples/drift         # fails: stale + dangling
+go run ./cmd/spec-blame blame --root examples/drift main.go
+go run ./cmd/spec-blame map   --root examples/drift auth/token-expiry
+```
+
+Mark code with a comment in any comment style:
+
+```go
+// @spec auth/token-expiry #a3f2b1
+func Validate() {}
+```
+
+The `#a3f2b1` is a hash of the acceptance criteria — when the spec
+changes, the marker goes stale and `check` fails. Omit it to link without
+drift detection.
+
+## GitHub Action
+
+```yaml
+- uses: pingedbrain/strata@main   # tag pin recommended once released
+```
 
 ## Build
 

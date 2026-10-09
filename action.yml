@@ -1,0 +1,32 @@
+name: spec-blame
+description: >-
+  Requirements traceability gate — fails CI on dangling refs, stale spec
+  bindings, and (optionally) coverage below a minimum.
+author: pingedbrain
+branding:
+  icon: layers
+  color: gray-dark
+
+inputs:
+  root:
+    description: Repo root containing specs and code
+    default: "."
+  min-coverage:
+    description: Fail below this coverage fraction (0 = advisory only)
+    default: "0"
+  version:
+    description: strata version to install (go install ref)
+    default: "latest"
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-go@v5
+      with:
+        go-version: stable
+    - name: Install spec-blame
+      shell: bash
+      run: go install "github.com/pingedbrain/strata/cmd/spec-blame@${{ inputs.version }}"
+    - name: Check
+      shell: bash
+      run: spec-blame check --root "${{ inputs.root }}" --min-coverage "${{ inputs.min-coverage }}"

@@ -66,9 +66,10 @@ single static binary. Everything marked **(MVP)** below.
 - ~~**(MVP)** `check`~~ ✅ — gate fails on dangling/stale only, coverage
   advisory (`--min-coverage` opt-in). SARIF output still open. `[size:M]`
 - ~~**(MVP)** `coverage`~~ ✅ — % + per-requirement table. `[size:S]`
-- **(MVP)** `blame <file>` — annotate file: which requirements justify
-  each marked region. The name-making command. `[size:S]`
-- **(MVP)** `map <req>` / `map <file>` — bidirectional lookup. `[size:S]`
+- ~~**(MVP)** `blame <file>`~~ ✅ — annotations in a file with ok/stale/
+  dangling status + requirement titles.
+- ~~**(MVP)** `map <req>` / `map <file>`~~ ✅ — bidirectional lookup,
+  basename suffix matching. `[size:S]`
 - `serve` — MCP server over the graph (`req_for_symbol`,
   `symbols_for_req`, `coverage`, `stale`) so sdd-apply/agents query the
   map while coding. `[size:M]`
@@ -91,10 +92,10 @@ single static binary. Everything marked **(MVP)** below.
 
 ### Distribution
 
-- **(MVP)** GitHub Action — `uses: …/strata@v0` running `spec-blame check`
-  (microburst action.yml pattern). `[size:S]` `[good-first-issue]`
-- goreleaser pipeline — binaries for linux/mac/win + `go install`.
-  `[size:S]` `[good-first-issue]`
+- ~~**(MVP)** GitHub Action~~ ✅ — `action.yml` composite: setup-go +
+  `go install` + `spec-blame check`. Needs a tag to pin `@vX`.
+- ~~goreleaser pipeline~~ ✅ — `.goreleaser.yaml`, both binaries,
+  CGO_ENABLED=0, tar.gz/zip + checksums. Needs a tag to fire.
 - SARIF upload docs — results in GitHub code-scanning UI. `[size:S]`
 
 ## Explicitly out of scope

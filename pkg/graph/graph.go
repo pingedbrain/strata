@@ -5,6 +5,8 @@
 package graph
 
 import (
+	"strings"
+
 	"github.com/pingedbrain/strata/pkg/markers"
 	"github.com/pingedbrain/strata/pkg/reqgraph"
 )
@@ -58,4 +60,43 @@ func (r *Result) Coverage() (covered, total int) {
 		}
 	}
 	return len(linked), len(linked) + len(r.Uncovered)
+}
+
+// fileMatch accepts exact paths or basename suffixes ("main.go" matches
+// "cmd/sub/main.go").
+func fileMatch(got, want string) bool {
+	return got == want || strings.HasSuffix(got, "/"+want)
+}
+
+// EdgesIn returns resolved links whose marker sits in file.
+func (r *Result) EdgesIn(file string) []Edge {
+	var out []Edge
+	for _, e := range r.Edges {
+		if fileMatch(e.File, file) {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+// DanglingIn returns unresolved markers sitting in file.
+func (r *Result) DanglingIn(file string) []markers.Marker {
+	var out []markers.Marker
+	for _, m := range r.Dangling {
+		if fileMatch(m.File, file) {
+			out = append(out, m)
+		}
+	}
+	return out
+}
+
+// EdgesFor returns resolved links pointing at requirement id.
+func (r *Result) EdgesFor(id string) []Edge {
+	var out []Edge
+	for _, e := range r.Edges {
+		if e.ReqID == id {
+			out = append(out, e)
+		}
+	}
+	return out
 }

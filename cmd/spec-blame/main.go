@@ -37,8 +37,12 @@ func main() {
 		err = runCheck(os.Args[2:])
 	case "coverage":
 		err = runCoverage(os.Args[2:])
-	case "blame", "map", "serve":
-		err = fmt.Errorf("spec-blame %s: not implemented yet", os.Args[1])
+	case "blame":
+		err = runBlame(os.Args[2:])
+	case "map":
+		err = runMap(os.Args[2:])
+	case "serve":
+		err = fmt.Errorf("spec-blame serve: not implemented yet")
 	default:
 		fmt.Fprint(os.Stderr, usage)
 		os.Exit(2)
@@ -100,5 +104,80 @@ func runCoverage(args []string) error {
 	}
 	cov, tot := rep.Result.Coverage()
 	fmt.Printf("\ncoverage: %d/%d requirements linked\n", cov, tot)
+	return nil
+}
+
+func runBlame(args []string) error {
+	fs := flag.NewFlagSet("blame", flag.ContinueOnError)
+	root := fs.String("root", ".", "repo root")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() != 1 {
+		return fmt.Errorf("usage: spec-blame blame [--root dir] <file>")
+	}
+	rep, err := check.Run(os.DirFS(*root), check.Options{})
+	if err != nil {
+		return err
+	}
+	file := fs.Arg(0)
+	found := false
+	for _, e := range rep.Result.EdgesIn(file) {
+		found = true
+		r := rep.Graph.Requirements[e.ReqID]
+		status := "ok"
+		if e.Stale {
+			status = "stale"
+		}
+		fmt.Printf("%-8s %s:%d → %s (%s)\n         %s\n", status, e.File, e.Line, e.ReqID, e.Kind, r.Title)
+	}
+	for _, m := range rep.Result.DanglingIn(file) {
+		found = true
+		fmt.Printf("%-8s %s:%d → %s (%s)\n         no such requirement\n", "dangling", m.File, m.Line, m.ReqID, m.Kind)
+	}
+	if !found {
+		fmt.Println("no markers in", file)
+	}
+	return nil
+}
+
+func runMap(args []string) error {
+	fs := flag.NewFlagSet("map", flag.ContinueOnError)
+	root := fs.String("root", ".", "repo root")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() != 1 {
+		return fmt.Errorf("usage: spec-blame map [--root dir] <req-id|file>")
+	}
+	rep, err := check.Run(os.DirFS(*root), check.Options{})
+	if err != nil {
+		return err
+	}
+	arg := fs.Arg(0)
+	if r, ok := rep.Graph.Requirements[arg]; ok {
+		fmt.Printf("%s — %s\n  %s\n", r.ID, r.Title, r.Source)
+		for _, e := range rep.Result.EdgesFor(arg) {
+			stale := ""
+			if e.Stale {
+				stale = "  [stale]"
+			}
+			fmt.Printf("  %s:%d (%s)%s\n", e.File, e.Line, e.Kind, stale)
+		}
+		return nil
+	}
+	// file → requirements
+	edges := rep.Result.EdgesIn(arg)
+	if len(edges) == 0 && len(rep.Result.DanglingIn(arg)) == 0 {
+		return fmt.Errorf("no requirement or file matches %q", arg)
+	}
+	fmt.Println(arg, "implements:")
+	for _, e := range edges {
+		r := rep.Graph.Requirements[e.ReqID]
+		fmt.Printf("  %s — %s\n", e.ReqID, r.Title)
+	}
+	for _, m := range rep.Result.DanglingIn(arg) {
+		fmt.Printf("  %s (dangling)\n", m.ReqID)
+	}
 	return nil
 }

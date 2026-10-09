@@ -41,3 +41,31 @@ func TestJoinClassifiesEdges(t *testing.T) {
 		t.Fatalf("uncovered: %+v", res.Uncovered)
 	}
 }
+
+func TestLookups(t *testing.T) {
+	g := reqgraph.New()
+	_ = g.Add(&reqgraph.Requirement{ID: "A-1"})
+
+	ms := []markers.Marker{
+		{Kind: markers.Spec, ReqID: "A-1", File: "cmd/x/main.go", Line: 1},
+		{Kind: markers.Spec, ReqID: "A-1", File: "lib.go", Line: 2},
+		{Kind: markers.Spec, ReqID: "NOPE", File: "cmd/x/main.go", Line: 9},
+	}
+	res := Join(g, ms)
+
+	if got := res.EdgesFor("A-1"); len(got) != 2 {
+		t.Fatalf("EdgesFor: %+v", got)
+	}
+	if got := res.EdgesIn("main.go"); len(got) != 1 {
+		t.Fatalf("EdgesIn basename match: %+v", got)
+	}
+	if got := res.EdgesIn("cmd/x/main.go"); len(got) != 1 {
+		t.Fatalf("EdgesIn path match: %+v", got)
+	}
+	if got := res.DanglingIn("main.go"); len(got) != 1 || got[0].ReqID != "NOPE" {
+		t.Fatalf("DanglingIn: %+v", got)
+	}
+	if got := res.EdgesIn("nope.go"); len(got) != 0 {
+		t.Fatalf("EdgesIn should not match: %+v", got)
+	}
+}

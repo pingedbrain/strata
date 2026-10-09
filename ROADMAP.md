@@ -36,8 +36,8 @@ single static binary. Everything marked **(MVP)** below.
 - ~~**(MVP)** Marker grammar: `@spec <req-id> #<hash>`~~ ✅ — any comment
   style (`//`, `#`, `/*`, `--`), structured grep, `Scan`/`ScanFile`/`ScanDir`.
 - ~~**(MVP)** Staleness~~ ✅ + ~~**(MVP)** Dangling refs~~ ✅ — in pkg/graph Join.
-- Marker auto-fix: `spec-blame sync` rewrites stale hashes after spec
-  edits are reviewed (spec-seal proved this UX works). `[size:S]`
+- ~~Marker auto-fix: `spec-blame sync`~~ ✅ — rewrites stale bound hashes
+  by (file, line, reqID); leaves same-ID markers elsewhere untouched.
 
 ### `pkg/index` — code side
 
@@ -70,9 +70,11 @@ single static binary. Everything marked **(MVP)** below.
   dangling status + requirement titles.
 - ~~**(MVP)** `map <req>` / `map <file>`~~ ✅ — bidirectional lookup,
   basename suffix matching. `[size:S]`
-- `serve` — MCP server over the graph (`req_for_symbol`,
-  `symbols_for_req`, `coverage`, `stale`) so sdd-apply/agents query the
-  map while coding. `[size:M]`
+- ~~`serve`~~ ✅ — MCP stdio server, hand-rolled JSON-RPC (zero deps):
+  `strata_reqs_for_file`, `strata_files_for_req`, `strata_coverage`,
+  `strata_stale`, `strata_dangling`. Fresh graph per call.
+- `serve` symbol-level tools — `req_for_symbol` once SCIP lands.
+  `[size:M]`
 - `tui` — bubbletea explorer: req→symbols→tests navigation, stale-refs
   fix flow. `[size:M]` (post-MVP, needs the graph stable)
 - `badge` — emit shields.io endpoint JSON for README coverage badges.

@@ -8,6 +8,7 @@ import (
 
 	"github.com/pingedbrain/strata/pkg/check"
 	"github.com/pingedbrain/strata/pkg/markers"
+	"github.com/pingedbrain/strata/pkg/mcp"
 )
 
 const usage = `spec-blame — traceability gate for spec-driven development
@@ -19,6 +20,7 @@ commands:
   coverage  spec coverage report
   blame     annotate a file with the requirements that justify it
   map       bidirectional req↔code lookup
+  sync      rewrite stale bound hashes after reviewed spec edits
   serve     MCP server over the requirement graph
 
 common flags:
@@ -41,8 +43,10 @@ func main() {
 		err = runBlame(os.Args[2:])
 	case "map":
 		err = runMap(os.Args[2:])
+	case "sync":
+		err = runSync(os.Args[2:])
 	case "serve":
-		err = fmt.Errorf("spec-blame serve: not implemented yet")
+		err = runServe(os.Args[2:])
 	default:
 		fmt.Fprint(os.Stderr, usage)
 		os.Exit(2)
@@ -180,4 +184,38 @@ func runMap(args []string) error {
 		fmt.Printf("  %s (dangling)\n", m.ReqID)
 	}
 	return nil
+}
+
+func runSync(args []string) error {
+	fs := flag.NewFlagSet("sync", flag.ContinueOnError)
+	root := fs.String("root", ".", "repo root")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	rep, err := check.Run(os.DirFS(*root), check.Options{})
+	if err != nil {
+		return err
+	}
+	fixes := rep.StaleFixes()
+	if len(fixes) == 0 {
+		fmt.Println("no stale markers")
+		return nil
+	}
+	if err := markers.ApplyFixes(*root, fixes); err != nil {
+		return err
+	}
+	for _, f := range fixes {
+		fmt.Printf("synced %s:%d → %s #%s\n", f.File, f.Line, f.ReqID, f.NewHash)
+	}
+	return nil
+}
+
+func runServe(args []string) error {
+	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
+	root := fs.String("root", ".", "repo root")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	srv := &mcp.Server{Root: os.DirFS(*root)}
+	return srv.Serve(os.Stdin, os.Stdout)
 }

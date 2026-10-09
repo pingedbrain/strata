@@ -67,6 +67,21 @@ func (r *Report) GateFailures() []string {
 	return out
 }
 
+// StaleFixes converts stale edges into marker rewrites for `sync`.
+func (r *Report) StaleFixes() []markers.Fix {
+	var out []markers.Fix
+	for _, e := range r.Result.Edges {
+		if e.Stale {
+			r2 := r.Graph.Requirements[e.ReqID]
+			out = append(out, markers.Fix{
+				File: e.File, Line: e.Line, ReqID: e.ReqID,
+				NewHash: r2.AcceptanceHash(),
+			})
+		}
+	}
+	return out
+}
+
 // codeOnly excludes spec dirs, VCS metadata, and dependency dirs from
 // marker scanning — specs are not code and markers inside them would
 // self-link.

@@ -1,6 +1,6 @@
 package main
 
-// @spec auth/token-expiry #df6b23
+// @spec auth/token-expiry #92bb15
 // Bound hash no longer matches — the spec changed since this was annotated.
 func validate() {}
 

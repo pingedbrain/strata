@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="bdd" tests="2" failures="0">
+  <testcase classname="tests.test_login" name="test_valid_login" time="0.12"/>
+  <testcase classname="tests.test_login" name="test_expired_session" time="0.08"/>
+</testsuite>

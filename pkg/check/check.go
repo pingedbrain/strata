@@ -74,6 +74,7 @@ func Run(fsys fs.FS, opts Options) (*Report, error) {
 		}
 		idx.Overlay(si)
 	}
+	ms = append(ms, bddMarkers(g, idx)...)
 	res := graph.Join(g, ms, idx)
 	for _, jp := range opts.JUnit {
 		data, err := fs.ReadFile(fsys, jp)
@@ -84,7 +85,7 @@ func Run(fsys fs.FS, opts Options) (*Report, error) {
 		if err != nil {
 			return nil, fmt.Errorf("junit %s: %w", jp, err)
 		}
-		res.ApplyTestResults(idx, cases)
+		res.ApplyTestResults(g, idx, cases)
 	}
 	return &Report{
 		Formats: formats, Graph: g, Index: idx,
@@ -123,6 +124,51 @@ func (r *Report) StaleFixes() []markers.Fix {
 				File: e.File, Line: e.Line, ReqID: e.ReqID,
 				NewHash: r2.AcceptanceHash(),
 			})
+		}
+	}
+	return out
+}
+
+// bddMarkers synthesizes `verifies` markers from BDD step definitions:
+// a pytest-bdd @given/@when/@then or cucumber Given() whose text matches
+// a scenario step counts as a verification link — no manual marker
+// needed. A scenarios("x.feature") call links every requirement defined
+// in that feature file.
+func bddMarkers(g *reqgraph.Graph, idx *index.Index) []markers.Marker {
+	seen := map[[3]string]bool{}
+	var out []markers.Marker
+	add := func(id string, sd index.Symbol) {
+		k := [3]string{id, sd.File, fmt.Sprint(sd.Line)}
+		if !seen[k] {
+			seen[k] = true
+			out = append(out, markers.Marker{
+				Kind: markers.Verifies, ReqID: id, File: sd.File, Line: sd.Line,
+			})
+		}
+	}
+	for _, sd := range idx.StepDefs {
+		if sd.Kind == "scenarios-ref" {
+			for _, id := range g.IDs() {
+				src := g.Requirements[id].Source
+				if i := strings.IndexByte(src, ':'); i >= 0 {
+					src = src[:i]
+				}
+				name := strings.TrimLeft(sd.Name, "./") // "../features/x" → "features/x"
+				if index.FileMatch(src, name) {
+					add(id, sd)
+				}
+			}
+			continue
+		}
+		for _, id := range g.IDs() {
+			for _, sc := range g.Requirements[id].Scenarios {
+				for _, step := range sc.Steps {
+					if index.BDDStepMatch(sd.Name, step) {
+						add(id, sd)
+						break
+					}
+				}
+			}
 		}
 	}
 	return out

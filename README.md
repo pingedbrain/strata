@@ -28,7 +28,17 @@ go run ./cmd/spec-blame check --root examples/drift         # fails: stale + dan
 go run ./cmd/spec-blame blame --root examples/drift main.go # symbol-level
 go run ./cmd/spec-blame map   --root examples/drift auth/token-expiry
 go run ./cmd/spec-blame tui   --root examples/drift         # interactive
+go run ./cmd/spec-blame check --root examples/multiformat --junit junit.xml
 ```
+
+## BDD: markers not required
+
+Gherkin scenarios get verification links automatically: pytest-bdd
+`@given/@when/@then` decorators, `scenarios("x.feature")` refs, and
+cucumber.js `Given()/When()/Then()` defs whose text matches a scenario
+step synthesize `verifies` edges — no `@spec` marker needed. Pass
+`--junit results.xml` and scenario names (`test_valid_login`) mark the
+requirement `verified`/`failing` (see `examples/multiformat`).
 
 Mark code with a comment in any comment style:
 

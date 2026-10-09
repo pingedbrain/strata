@@ -15,11 +15,11 @@ func (goExtractor) isTestFile(p string) bool {
 	return strings.HasSuffix(p, "_test.go")
 }
 
-func (goExtractor) parse(data []byte, filename string) (exports, tests []Symbol) {
+func (goExtractor) parse(data []byte, filename string) (exports, tests, stepdefs []Symbol) {
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, filename, data, parser.SkipObjectResolution)
 	if err != nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 	testFile := strings.HasSuffix(filename, "_test.go")
 	for _, decl := range f.Decls {
@@ -55,7 +55,7 @@ func (goExtractor) parse(data []byte, filename string) (exports, tests []Symbol)
 			}
 		}
 	}
-	return exports, tests
+	return exports, tests, nil
 }
 
 func recvName(e ast.Expr) string {

@@ -27,7 +27,7 @@ single static binary. Everything marked **(MVP)** below.
   headings in any md outside spec dirs; IDs verbatim, ≥2 per file to
   detect.
 - ~~Gherkin `.feature` adapter~~ ✅ — Scenario/Scenario Outline →
-  requirement, steps → acceptance. BDD step-def→test linkage still open.
+  requirement, steps → acceptance; step-def linkage auto-verifies.
 - ~~spec-kit adapter~~ ✅ — `specs/<NNN-feature>/spec.md` `**FR-NNN**`
   bullets → `<feature>/FR-NNN`; FR text rides in a scenario so hashes
   catch drift.
@@ -69,7 +69,10 @@ single static binary. Everything marked **(MVP)** below.
   conventions still open. `[size:M]`
 - JUnit XML merge — test results turn `covered` into `verified`/`failing`
   (reqcov pattern — auditors want this, costs little). `[size:M]`
-- BDD test linkage — pytest-bdd/cucumber step-def graphs feed coverage
+- ~~BDD test linkage — pytest-bdd/cucumber step-def graphs feed coverage~~
+  ✅ step-defs (`@given/@when/@then`, `Given()`) and `scenarios()` refs
+  synthesize `verifies` edges; junit scenario-name matching marks
+  requirements verified/failing
   automatically. `[size:M]` `[good-first-issue]`
 
 ### `cmd/spec-blame` — verify binary

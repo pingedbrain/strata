@@ -38,7 +38,7 @@ func Reset() {}
 		{Name: "TestValidateExtra"},       // extra passing cover for Validate
 		{Name: "TestUnrelated"},
 	}
-	res.ApplyTestResults(idx, cases)
+	res.ApplyTestResults(g, idx, cases)
 
 	if len(res.Verified) != 1 || res.Verified[0] != "R-1" {
 		t.Fatalf("verified: %+v", res.Verified)
@@ -48,11 +48,29 @@ func Reset() {}
 	}
 
 	// failing trumps passing on the same requirement
-	res.ApplyTestResults(idx, []junit.Case{
+	res.ApplyTestResults(g, idx, []junit.Case{
 		{Name: "TestValidate", Failed: true},
 		{Name: "TestValidate2"},
 	})
 	if len(res.Failing) != 1 || res.Failing[0] != "R-1" || len(res.Verified) != 0 {
 		t.Fatalf("failing should trump: v=%+v f=%+v", res.Verified, res.Failing)
+	}
+}
+
+func TestApplyTestResultsScenarioNames(t *testing.T) {
+	g := reqgraph.New()
+	_ = g.Add(&reqgraph.Requirement{
+		ID:    "auth/valid-login",
+		Title: "Valid login",
+		Scenarios: []reqgraph.Scenario{
+			{Name: "Valid login"},
+		},
+	})
+	res := Join(g, nil, nil) // no markers — pure BDD verification
+	res.ApplyTestResults(g, nil, []junit.Case{
+		{Name: "test_valid_login"}, // pytest-bdd style
+	})
+	if len(res.Verified) != 1 || res.Verified[0] != "auth/valid-login" {
+		t.Fatalf("scenario-name match should verify: %+v", res.Verified)
 	}
 }

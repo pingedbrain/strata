@@ -18,17 +18,20 @@ type Symbol struct {
 	Exported bool // public surface; unexported symbols bind markers but aren't requirement candidates
 }
 
-// Index maps files to their exported symbols, plus test symbols.
+// Index maps files to their symbols, plus test symbols and BDD
+// step-definition texts (pytest-bdd decorators, cucumber Given()).
 type Index struct {
-	Files map[string][]Symbol
-	Tests []Symbol
+	Files    map[string][]Symbol
+	Tests    []Symbol
+	StepDefs []Symbol // Kind "stepdef" (Name = step text) or "scenarios-ref" (Name = .feature path)
 }
 
-// extractor pulls exported symbols and test names from one language.
+// extractor pulls exported symbols, test names, and BDD step-definition
+// texts from one language.
 type extractor interface {
 	match(path string) bool
 	isTestFile(path string) bool
-	parse(data []byte, filename string) (exports, tests []Symbol)
+	parse(data []byte, filename string) (exports, tests, stepdefs []Symbol)
 }
 
 var extractors = []extractor{goExtractor{}, pyExtractor{}, tsExtractor{}}
@@ -59,7 +62,8 @@ func Scan(fsys fs.FS, skip func(path string, isDir bool) bool) (*Index, error) {
 			if err != nil {
 				return err
 			}
-			exports, tests := ex.parse(data, p)
+			exports, tests, stepdefs := ex.parse(data, p)
+			idx.StepDefs = append(idx.StepDefs, stepdefs...)
 			if ex.isTestFile(p) {
 				idx.Tests = append(idx.Tests, tests...)
 			} else if len(exports) > 0 {

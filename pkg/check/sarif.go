@@ -7,6 +7,7 @@ import (
 
 // SARIF renders the gate failures as SARIF 2.1.0 — feed it to GitHub
 // code scanning via `upload-sarif` and findings land on the PR diff.
+// @spec check/report-sarif
 func (r *Report) SARIF() ([]byte, error) {
 	type artifactLoc struct {
 		URI string `json:"uri"`

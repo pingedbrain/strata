@@ -14,6 +14,7 @@ import (
 // a scenario name (pytest-bdd emits test names from scenario titles).
 // Failing trumps verified. Test data is heuristic — it informs status,
 // never the gate.
+// @spec graph/result-apply-test-results
 func (r *Result) ApplyTestResults(g *reqgraph.Graph, idx *index.Index, tests []junit.Case) {
 	if len(tests) == 0 {
 		return

@@ -57,7 +57,24 @@ provider-agnostic, prompt on stdin, one sentence on stdout:
 spec-excavate propose --root . --enrich-cmd "claude -p"
 spec-excavate propose --root . --enrich-cmd "ollama run llama3"
 spec-excavate propose --root . --dump-prompts   # feed prompts manually
+spec-excavate history --root .                  # git hot files + coupling
 ```
+
+## Ignore & impact
+
+`.strataignore` at the repo root excludes paths from specs ingestion and
+marker/symbol scanning — one pattern per line: `dir/`, `*.ext`, or an
+exact path. Markdown docs and `*.scip` artifacts are always code-side
+excluded.
+
+```bash
+spec-blame impact --root . pkg/graph/graph.go   # reqs a refactor touches
+```
+
+`impact` uses symbol references when a SCIP index is present
+(`--scip index.scip`, auto-detected at root): changing a file flags the
+requirements bound to its symbols *and* requirements whose code calls
+them.
 
 Mark code with a comment in any comment style:
 

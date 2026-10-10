@@ -55,10 +55,14 @@ single static binary. Everything marked **(MVP)** below.
   (protobuf wire, zero deps), overlays onto native extraction.
   Auto-detects `index.scip` at root or `--scip <path>`. Validated
   against real scip-go output.
-- SCIP refs/relationships — we only consume definitions today;
-  references could power usage-based drift hints. `[size:M]`
-- tree-sitter via WASM (wazero, no CGO) — own grammars, symbol extraction
-  as fallback when no SCIP indexer exists. `[size:L]`
+- ~~SCIP refs/relationships~~ ✅ — non-definition occurrences land in
+  `Index.Refs`; `spec-blame impact <file>` lists requirements a refactor
+  touches (bound symbols + files referencing them).
+- tree-sitter via WASM (wazero, no CGO) — deferred: wasm libtree-sitter
+  runtime is a heavy dep for marginal gain. Shipped instead: exported
+  `index.Extractor` + `RegisterExtractor` seam (a wasm plugin lands there
+  unchanged) and a generic C-family regex extractor covering
+  Rust/C/C++/Java/C#/Kotlin/Swift/Ruby/PHP/Scala/Dart/Elixir/Lua/Perl.
 - ~~Dead-code radar~~ ✅ — exported symbols with no marker surface as
   `Result.Unlinked` and in `blame`. Advisory only, never gate. `[size:M]`
 
@@ -109,8 +113,12 @@ single static binary. Everything marked **(MVP)** below.
   `--dump-prompts` for copy-paste flows. `[size:L]`
 - `suggest-markers` — propose `@spec` annotations for existing symbols;
   writes a diff the human reviews. `[size:M]`
-- Git-history mining — hot files + change coupling inform requirement
-  boundaries. `[size:L]` (post-MVP)
+- ~~Git-history mining~~ ✅ — `spec-excavate history` parses
+  `git log --numstat`: hot files by commits touched + change coupling
+  (co-changed file pairs) surface requirement boundaries.
+- ~~`.strataignore`~~ ✅ — repo-level exclude list (dirs, globs, paths)
+  applied to spec ingestion AND marker/symbol scanning; `.md` docs and
+  `*.scip` artifacts are excluded by default, binaries are NUL-sniffed.
 
 ### Distribution
 

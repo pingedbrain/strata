@@ -11,6 +11,7 @@ import (
 // language indexers like scip-go or scip-python and converts symbol
 // definitions into an Index. Hand-rolled wire decoding — protobuf
 // fields we don't need are skipped, so unknown/newer fields are fine.
+// @spec index/load-scip
 func LoadSCIP(data []byte) (*Index, error) {
 	idx := &Index{Files: map[string][]Symbol{}}
 	var err error
@@ -28,6 +29,7 @@ func LoadSCIP(data []byte) (*Index, error) {
 // Overlay merges richer symbol data (typically SCIP) into i: files the
 // other index covers are replaced outright, others are left alone.
 // SCIP data wins over regex extraction for the same file.
+// @spec index/index-overlay
 func (i *Index) Overlay(other *Index) {
 	if other == nil {
 		return
@@ -36,6 +38,12 @@ func (i *Index) Overlay(other *Index) {
 		i.Files[f] = syms
 	}
 	i.Tests = append(i.Tests, other.Tests...)
+	if len(other.Refs) > 0 && i.Refs == nil {
+		i.Refs = map[string][]Symbol{}
+	}
+	for f, refs := range other.Refs {
+		i.Refs[f] = refs
+	}
 }
 
 func loadSCIPDocument(idx *Index, data []byte) {
@@ -56,12 +64,18 @@ func loadSCIPDocument(idx *Index, data []byte) {
 	}
 	for _, o := range occs {
 		sym, roles, line := scipOccurrence(o)
-		if roles&0x1 == 0 { // not a definition
-			continue
-		}
 		name, kind := scipSymbolName(sym)
 		if name == "" {
 			continue // locals and unparsable symbols don't map to declarations
+		}
+		if roles&0x1 == 0 { // reference, not a definition
+			if idx.Refs == nil {
+				idx.Refs = map[string][]Symbol{}
+			}
+			idx.Refs[path] = append(idx.Refs[path], Symbol{
+				Name: name, Kind: "ref", File: path, Line: line + 1,
+			})
+			continue
 		}
 		s := Symbol{
 			Name: name, Kind: kind, File: path, Line: line + 1, // scip is 0-based

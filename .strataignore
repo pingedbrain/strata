@@ -1,0 +1,5 @@
+# strata repo — keep the self-hosted gate clean.
+# examples/ carry their own specs (self-contained demos).
+examples/
+# test files contain fixture markers for other repos' specs.
+*_test.go

@@ -2,6 +2,7 @@ package markers
 
 import (
 	"bufio"
+	"bytes"
 	"io"
 	"io/fs"
 )
@@ -9,14 +10,19 @@ import (
 // Scan reads markers from any stream. name is recorded on each Marker.
 // Files with lines beyond 1 MiB (lockfiles, minified bundles, JSON
 // captures) can't host markers — they're skipped, not fatal.
+// @spec markers/scan
 func Scan(r io.Reader, name string) ([]Marker, error) {
 	var out []Marker
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 64*1024), 1024*1024)
 	line := 0
 	for sc.Scan() {
+		b := sc.Bytes()
+		if bytes.IndexByte(b, 0) >= 0 {
+			return nil, nil // binary file — no markers
+		}
 		line++
-		for _, m := range re.FindAllStringSubmatch(sc.Text(), -1) {
+		for _, m := range re.FindAllStringSubmatch(string(b), -1) {
 			out = append(out, Marker{
 				Kind:  kindOf(m[1]),
 				ReqID: m[2],
@@ -34,6 +40,7 @@ func Scan(r io.Reader, name string) ([]Marker, error) {
 
 // ScanDir walks fsys and scans every file not excluded by skip.
 // skip(path, isDir) returning true prunes dirs and ignores files.
+// @spec markers/scan-dir
 func ScanDir(fsys fs.FS, skip func(path string, isDir bool) bool) ([]Marker, error) {
 	var out []Marker
 	err := fs.WalkDir(fsys, ".", func(p string, d fs.DirEntry, err error) error {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"path"
+	"sort"
 	"strings"
 
 	"github.com/pingedbrain/strata/pkg/graph"
@@ -17,6 +18,7 @@ import (
 )
 
 // Options tunes the gate.
+// @spec check/options
 type Options struct {
 	// MinCoverage, when > 0, fails the gate below this fraction.
 	// Default 0 = coverage is advisory only.
@@ -31,6 +33,7 @@ type Options struct {
 }
 
 // Report is the full gate result.
+// @spec check/report
 type Report struct {
 	Formats []string
 	Graph   *reqgraph.Graph
@@ -40,31 +43,38 @@ type Report struct {
 }
 
 // Run executes the gate over fsys (a repo root).
+// @spec check/run
 func Run(fsys fs.FS, opts Options) (*Report, error) {
-	g, err := ingest.Load(fsys)
+	ignore := strataIgnore(fsys)
+	// ingest sees the repo minus .strataignore paths — ignored dirs
+	// (e.g. examples/ with their own specs) don't leak into the graph
+	vfs := filteredFS{fsys, func(p string, isDir bool) bool {
+		return ignoredBy(ignore, p, isDir)
+	}}
+	g, err := ingest.Load(vfs)
 	if err != nil {
 		return nil, err
 	}
 	var formats []string
-	for _, a := range ingest.DetectAll(fsys) {
+	for _, a := range ingest.DetectAll(vfs) {
 		formats = append(formats, a.Name())
 	}
-	ms, err := markers.ScanDir(fsys, codeOnly)
+	ms, err := markers.ScanDir(fsys, codeOnlyWith(ignore))
 	if err != nil {
 		return nil, err
 	}
-	idx, err := index.Scan(fsys, codeOnly)
+	idx, err := index.Scan(fsys, codeOnlyWith(ignore))
 	if err != nil {
 		return nil, err
 	}
 	scipPath := opts.SCIP
 	if scipPath == "" {
-		if _, err := fs.Stat(fsys, "index.scip"); err == nil {
+		if _, err := fs.Stat(vfs, "index.scip"); err == nil {
 			scipPath = "index.scip"
 		}
 	}
 	if scipPath != "" {
-		data, err := fs.ReadFile(fsys, scipPath)
+		data, err := fs.ReadFile(vfs, scipPath)
 		if err != nil {
 			return nil, fmt.Errorf("scip: %w", err)
 		}
@@ -77,7 +87,7 @@ func Run(fsys fs.FS, opts Options) (*Report, error) {
 	ms = append(ms, bddMarkers(g, idx)...)
 	res := graph.Join(g, ms, idx)
 	for _, jp := range opts.JUnit {
-		data, err := fs.ReadFile(fsys, jp)
+		data, err := fs.ReadFile(vfs, jp)
 		if err != nil {
 			return nil, fmt.Errorf("junit: %w", err)
 		}
@@ -94,6 +104,7 @@ func Run(fsys fs.FS, opts Options) (*Report, error) {
 }
 
 // GateFailures lists the objectively-broken findings. Empty = pass.
+// @spec check/report-gate-failures
 func (r *Report) GateFailures() []string {
 	var out []string
 	for _, m := range r.Result.Dangling {
@@ -115,6 +126,7 @@ func (r *Report) GateFailures() []string {
 }
 
 // StaleFixes converts stale edges into marker rewrites for `sync`.
+// @spec check/report-stale-fixes
 func (r *Report) StaleFixes() []markers.Fix {
 	var out []markers.Fix
 	for _, e := range r.Result.Edges {
@@ -127,6 +139,50 @@ func (r *Report) StaleFixes() []markers.Fix {
 		}
 	}
 	return out
+}
+
+// Impact lists requirement IDs affected by changing file: those bound
+// to symbols defined there, plus those whose implementation files
+// reference those symbols. The dependent direction needs SCIP
+// references — without --scip only the direct part applies. Symbol
+// matching is by name, so same-named symbols in different packages can
+// over-approximate; it's a drift hint, not a gate.
+// @spec check/report-impact
+func (rep *Report) Impact(file string) []string {
+	idx := rep.Index
+	if idx == nil {
+		return nil
+	}
+	defined := map[string]bool{}
+	for _, f := range idx.FilesMatching(file) {
+		for _, s := range idx.Files[f] {
+			defined[s.Name] = true
+		}
+	}
+	dependents := map[string]bool{}
+	for refFile, refs := range idx.Refs {
+		for _, r := range refs {
+			if defined[r.Name] && !dependents[refFile] {
+				dependents[refFile] = true
+			}
+		}
+	}
+	out := map[string]bool{}
+	for _, e := range rep.Result.Edges {
+		if index.FileMatch(e.File, file) {
+			out[e.ReqID] = true // symbol defined in the changed file
+			continue
+		}
+		if dependents[e.File] {
+			out[e.ReqID] = true // file's code references a touched symbol
+		}
+	}
+	res := make([]string, 0, len(out))
+	for id := range out {
+		res = append(res, id)
+	}
+	sort.Strings(res)
+	return res
 }
 
 // bddMarkers synthesizes `verifies` markers from BDD step definitions:
@@ -175,8 +231,59 @@ func bddMarkers(g *reqgraph.Graph, idx *index.Index) []markers.Marker {
 }
 
 // codeOnly excludes spec dirs (openspec/spec-kit/features), VCS
-// metadata, and dependency dirs from marker and symbol scanning —
+// metadata, dependency dirs, markdown docs (the spec side, not the
+// code side), and SCIP artifacts from marker and symbol scanning —
 // specs are not code and markers inside them would self-link.
+// .strataignore at the root adds repo-specific patterns: "dir/",
+// "*.ext", or an exact path per line ("#" starts a comment).
+func codeOnlyWith(ignore []string) func(string, bool) bool {
+	return func(p string, isDir bool) bool {
+		return codeOnly(p, isDir) || ignoredBy(ignore, p, isDir)
+	}
+}
+
+// ignoredBy matches p against .strataignore patterns: "dir/" prefix,
+// "*.ext" basename suffix, or exact path/basename.
+func ignoredBy(ignore []string, p string, isDir bool) bool {
+	base := path.Base(p)
+	for _, pat := range ignore {
+		switch {
+		case strings.HasSuffix(pat, "/"):
+			if isDir && p == strings.TrimSuffix(pat, "/") {
+				return true
+			}
+			if strings.HasPrefix(p, pat) {
+				return true
+			}
+		case strings.HasPrefix(pat, "*"):
+			if strings.HasSuffix(base, pat[1:]) {
+				return true
+			}
+		default:
+			if p == pat || base == pat {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// strataIgnore reads .strataignore from fsys if present.
+func strataIgnore(fsys fs.FS) []string {
+	data, err := fs.ReadFile(fsys, ".strataignore")
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, l := range strings.Split(string(data), "\n") {
+		l = strings.TrimSpace(l)
+		if l != "" && !strings.HasPrefix(l, "#") {
+			out = append(out, l)
+		}
+	}
+	return out
+}
+
 func codeOnly(p string, isDir bool) bool {
 	if isDir {
 		base := path.Base(p)
@@ -184,5 +291,6 @@ func codeOnly(p string, isDir bool) bool {
 			base == "vendor" || base == "node_modules" ||
 			(strings.HasPrefix(base, ".") && base != ".")
 	}
-	return false
+	// docs are the spec side; .scip is a generated binary artifact
+	return strings.HasSuffix(p, ".md") || strings.HasSuffix(p, ".scip")
 }

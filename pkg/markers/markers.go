@@ -1,8 +1,8 @@
 // Package markers scans source files for requirement annotations:
 //
-//	@spec REQ-04 #a3f2b1          (any comment style)
-//	@implements AUTH-01
-//	@verifies AUTH-01
+//	@spec <req-id> #<hash>        (any comment style)
+//	@implements <req-id>
+//	@verifies <req-id>
 //
 // The scan is a structured grep — no language parsing. Comment syntax is
 // irrelevant because the marker itself is the same in every language.
@@ -14,6 +14,7 @@ import (
 )
 
 // Kind distinguishes what a marker claims.
+// @spec markers/kind
 type Kind int
 
 const (
@@ -22,6 +23,7 @@ const (
 	Verifies               // @verifies — this test verifies it
 )
 
+// @spec markers/kind-string
 func (k Kind) String() string {
 	switch k {
 	case Implements:
@@ -36,6 +38,7 @@ func (k Kind) String() string {
 var re = regexp.MustCompile(`@(spec|implements|verifies)\s+([A-Za-z0-9_/.-]+)(?:\s+#([0-9a-fA-F]{6}))?`)
 
 // Marker is one annotation occurrence.
+// @spec markers/marker
 type Marker struct {
 	Kind  Kind
 	ReqID string
@@ -45,6 +48,7 @@ type Marker struct {
 }
 
 // ScanFile extracts every marker in a file.
+// @spec markers/scan-file
 func ScanFile(path string) ([]Marker, error) {
 	f, err := os.Open(path)
 	if err != nil {

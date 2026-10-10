@@ -12,6 +12,7 @@ import (
 )
 
 // Edge is a resolved link between a marker and a requirement.
+// @spec graph/edge
 type Edge struct {
 	markers.Marker
 	Symbol string // symbol the marker annotates, "" if file-level
@@ -19,6 +20,7 @@ type Edge struct {
 }
 
 // Result is the joined traceability picture.
+// @spec graph/result
 type Result struct {
 	Edges     []Edge                  // resolved marker→requirement links
 	Dangling  []markers.Marker        // markers pointing at unknown requirement IDs
@@ -32,6 +34,7 @@ type Result struct {
 // nil (file-level mode); when set, each marker binds to the symbol
 // declared directly below it and unlinked symbols surface in Result.
 // Impl-links are Spec/Implements kinds; Verifies counts separately.
+// @spec graph/join
 func Join(g *reqgraph.Graph, ms []markers.Marker, idx *index.Index) *Result {
 	res := &Result{}
 	implLinked := map[string]bool{}
@@ -83,6 +86,7 @@ func Join(g *reqgraph.Graph, ms []markers.Marker, idx *index.Index) *Result {
 }
 
 // Coverage returns implemented / total requirements.
+// @spec graph/result-coverage
 func (r *Result) Coverage() (covered, total int) {
 	linked := map[string]bool{}
 	for _, e := range r.Edges {
@@ -94,6 +98,7 @@ func (r *Result) Coverage() (covered, total int) {
 }
 
 // EdgesIn returns resolved links whose marker sits in file.
+// @spec graph/result-edges-in
 func (r *Result) EdgesIn(file string) []Edge {
 	var out []Edge
 	for _, e := range r.Edges {
@@ -105,6 +110,7 @@ func (r *Result) EdgesIn(file string) []Edge {
 }
 
 // DanglingIn returns unresolved markers sitting in file.
+// @spec graph/result-dangling-in
 func (r *Result) DanglingIn(file string) []markers.Marker {
 	var out []markers.Marker
 	for _, m := range r.Dangling {
@@ -116,6 +122,7 @@ func (r *Result) DanglingIn(file string) []markers.Marker {
 }
 
 // EdgesFor returns resolved links pointing at requirement id.
+// @spec graph/result-edges-for
 func (r *Result) EdgesFor(id string) []Edge {
 	var out []Edge
 	for _, e := range r.Edges {

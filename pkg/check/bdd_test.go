@@ -5,8 +5,39 @@ import (
 	"testing"
 	"testing/fstest"
 
+	"github.com/pingedbrain/strata/pkg/graph"
+	"github.com/pingedbrain/strata/pkg/index"
 	"github.com/pingedbrain/strata/pkg/markers"
 )
+
+func TestImpact(t *testing.T) {
+	// lib.go defines Parse (bound to R-1); app.go references Parse and is
+	// bound to R-2 — refactoring lib.go must flag both.
+	idx := &index.Index{
+		Files: map[string][]index.Symbol{
+			"lib.go": {{Name: "Parse", File: "lib.go", Line: 3}},
+			"app.go": {{Name: "Run", File: "app.go", Line: 2}},
+		},
+		Refs: map[string][]index.Symbol{
+			"app.go": {{Name: "Parse", Kind: "ref", File: "app.go", Line: 9}},
+		},
+	}
+	rep := &Report{
+		Index: idx,
+		Result: &graph.Result{Edges: []graph.Edge{
+			{Marker: markers.Marker{ReqID: "R-1", File: "lib.go", Line: 2}, Symbol: "Parse"},
+			{Marker: markers.Marker{ReqID: "R-2", File: "app.go", Line: 1}, Symbol: "Run"},
+			{Marker: markers.Marker{ReqID: "R-3", File: "other.go", Line: 1}, Symbol: "Unrelated"},
+		}},
+	}
+	got := rep.Impact("lib.go")
+	if len(got) != 2 || got[0] != "R-1" || got[1] != "R-2" {
+		t.Fatalf("impact(lib.go) = %v, want [R-1 R-2]", got)
+	}
+	if got := rep.Impact("other.go"); len(got) != 1 || got[0] != "R-3" {
+		t.Fatalf("impact(other.go) = %v", got)
+	}
+}
 
 func TestBDDStepDefSynthesis(t *testing.T) {
 	fsys := fstest.MapFS{

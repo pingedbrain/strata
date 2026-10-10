@@ -15,6 +15,7 @@ import (
 )
 
 // Server answers MCP requests over Root's repo.
+// @spec mcp/server
 type Server struct {
 	Root fs.FS
 }
@@ -38,6 +39,7 @@ type rpcErr struct {
 }
 
 // Serve reads newline-delimited JSON-RPC from in, writes to out.
+// @spec mcp/server-serve
 func (s *Server) Serve(in io.Reader, out io.Writer) error {
 	sc := bufio.NewScanner(in)
 	sc.Buffer(make([]byte, 64*1024), 1024*1024)

@@ -19,19 +19,19 @@ var (
 	tsStepDef = regexp.MustCompile(`(?:^|[^\w])(?:Given|When|Then|Step)\(\s*(?:['"]([^'"]+)['"]|/([^/]+)/)`)
 )
 
-func (tsExtractor) match(p string) bool {
+func (tsExtractor) Match(p string) bool {
 	return strings.HasSuffix(p, ".ts") || strings.HasSuffix(p, ".tsx") ||
 		strings.HasSuffix(p, ".js") || strings.HasSuffix(p, ".mjs") || strings.HasSuffix(p, ".jsx")
 }
 
-func (tsExtractor) isTestFile(p string) bool {
+func (tsExtractor) IsTestFile(p string) bool {
 	base := path.Base(p)
 	return strings.Contains(base, ".test.") || strings.Contains(base, ".spec.") ||
 		strings.Contains(p, "__tests__/")
 }
 
-func (tsExtractor) parse(data []byte, filename string) (exports, tests, stepdefs []Symbol) {
-	testFile := tsExtractor{}.isTestFile(filename)
+func (tsExtractor) Parse(data []byte, filename string) (exports, tests, stepdefs []Symbol) {
+	testFile := tsExtractor{}.IsTestFile(filename)
 	sc := bufio.NewScanner(bytes.NewReader(data))
 	sc.Buffer(make([]byte, 64*1024), 1024*1024)
 	line := 0

@@ -10,6 +10,7 @@ import (
 )
 
 // Adapter reads one spec format into the canonical graph.
+// @spec ingest/adapter
 type Adapter interface {
 	// Name is the format identifier, e.g. "openspec".
 	Name() string
@@ -22,9 +23,11 @@ type Adapter interface {
 var adapters []Adapter
 
 // Register adds an adapter; called from each adapter file's init.
+// @spec ingest/register
 func Register(a Adapter) { adapters = append(adapters, a) }
 
 // DetectAll returns every adapter whose format is present under dir.
+// @spec ingest/detect-all
 func DetectAll(dir fs.FS) []Adapter {
 	var found []Adapter
 	for _, a := range adapters {
@@ -37,6 +40,7 @@ func DetectAll(dir fs.FS) []Adapter {
 
 // Load runs every detected adapter and merges the graphs. Duplicate
 // requirement IDs across formats surface as errors via Graph.Add.
+// @spec ingest/load
 func Load(dir fs.FS) (*reqgraph.Graph, error) {
 	found := DetectAll(dir)
 	if len(found) == 0 {

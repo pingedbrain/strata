@@ -9,13 +9,13 @@ import (
 
 type goExtractor struct{}
 
-func (goExtractor) match(p string) bool { return strings.HasSuffix(p, ".go") }
+func (goExtractor) Match(p string) bool { return strings.HasSuffix(p, ".go") }
 
-func (goExtractor) isTestFile(p string) bool {
+func (goExtractor) IsTestFile(p string) bool {
 	return strings.HasSuffix(p, "_test.go")
 }
 
-func (goExtractor) parse(data []byte, filename string) (exports, tests, stepdefs []Symbol) {
+func (goExtractor) Parse(data []byte, filename string) (exports, tests, stepdefs []Symbol) {
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, filename, data, parser.SkipObjectResolution|parser.ParseComments)
 	if err != nil {

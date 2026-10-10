@@ -10,6 +10,7 @@ import (
 // ("^I have (\d+) cukes$"). BDDStepMatch reports whether a step-def
 // pattern plausibly covers a scenario step: literal chunks must appear
 // in order after normalization (alnum-only, lowercased).
+// @spec index/bddstep-match
 func BDDStepMatch(pat, step string) bool {
 	norm := func(s string) string {
 		var b strings.Builder

@@ -8,6 +8,7 @@ import (
 )
 
 // Case is one executed test.
+// @spec junit/case
 type Case struct {
 	Name      string // test name, last segment only
 	Classname string // suite/class it ran in (often a file or package)
@@ -17,6 +18,7 @@ type Case struct {
 
 // Parse reads a JUnit XML document, handling both <testsuites> and bare
 // <testsuite> roots.
+// @spec junit/parse
 func Parse(data []byte) ([]Case, error) {
 	dec := xml.NewDecoder(strings.NewReader(string(data)))
 	var out []Case

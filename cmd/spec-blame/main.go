@@ -22,6 +22,7 @@ commands:
   coverage  spec coverage report
   blame     annotate a file with the requirements that justify it
   map       bidirectional req↔code lookup
+  impact    requirements a file change could break (SCIP refs help)
   sync      rewrite stale bound hashes after reviewed spec edits
   serve     MCP server over the requirement graph
   badge     shields.io endpoint JSON for spec coverage
@@ -49,6 +50,8 @@ func main() {
 		err = runBlame(os.Args[2:])
 	case "map":
 		err = runMap(os.Args[2:])
+	case "impact":
+		err = runImpact(os.Args[2:])
 	case "sync":
 		err = runSync(os.Args[2:])
 	case "serve":
@@ -246,6 +249,37 @@ func runMap(args []string) error {
 	}
 	for _, m := range rep.Result.DanglingIn(arg) {
 		fmt.Printf("  %s (dangling)\n", m.ReqID)
+	}
+	return nil
+}
+
+func runImpact(args []string) error {
+	fs := flag.NewFlagSet("impact", flag.ContinueOnError)
+	root := fs.String("root", ".", "repo root")
+	scip := fs.String("scip", "", "SCIP index file (inside --root)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() != 1 {
+		return fmt.Errorf("usage: spec-blame impact [--root dir] [--scip index.scip] <file>")
+	}
+	rep, err := check.Run(os.DirFS(*root), check.Options{SCIP: *scip})
+	if err != nil {
+		return err
+	}
+	file := fs.Arg(0)
+	ids := rep.Impact(file)
+	if len(ids) == 0 {
+		fmt.Printf("no requirements depend on %s\n", file)
+		return nil
+	}
+	fmt.Printf("changing %s touches %d requirement(s):\n", file, len(ids))
+	for _, id := range ids {
+		r := rep.Graph.Requirements[id]
+		fmt.Printf("  %-30s %s\n", id, r.Title)
+	}
+	if rep.Index.Refs == nil {
+		fmt.Println("(no SCIP refs — dependents via references not computed)")
 	}
 	return nil
 }

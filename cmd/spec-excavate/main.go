@@ -1,5 +1,5 @@
 // spec-excavate mines code→spec: proposes spec.md for repos that never
-// had one, plus suggested @spec markers.
+// had one, plus suggested spec markers.
 package main
 
 import (
@@ -22,7 +22,8 @@ usage: spec-excavate <command> [flags]
 commands:
   scan              walk a repo and list candidate requirements
   propose           draft openspec-compatible spec.md (--write to save)
-  suggest-markers   propose @spec annotations (--write to apply)
+  suggest-markers   propose spec annotations (--write to apply)
+  history           git hot files + change coupling (--max-commits 500)
 
 common flags:
   --root      repo root (default ".")
@@ -48,6 +49,8 @@ func main() {
 		err = runPropose(os.Args[2:])
 	case "suggest-markers":
 		err = runSuggestMarkers(os.Args[2:])
+	case "history":
+		err = runHistory(os.Args[2:])
 	default:
 		fmt.Fprint(os.Stderr, usage)
 		os.Exit(2)
@@ -191,6 +194,45 @@ func runSuggestMarkers(args []string) error {
 			return err
 		}
 		fmt.Println("annotated", f)
+	}
+	return nil
+}
+
+func runHistory(args []string) error {
+	fset := flag.NewFlagSet("history", flag.ContinueOnError)
+	root := fset.String("root", ".", "repo root")
+	max := fset.Int("max-commits", 500, "git log window")
+	top := fset.Int("top", 15, "rows per table")
+	if err := fset.Parse(args); err != nil {
+		return err
+	}
+	cmd := exec.Command("git", "-C", *root, "log",
+		fmt.Sprintf("--max-count=%d", *max), "--numstat", "--format=format:COMMIT")
+	out, err := cmd.Output()
+	if err != nil {
+		return fmt.Errorf("git log: %w", err)
+	}
+	files, pairs := mine.ParseHistory(strings.NewReader(string(out)))
+	hot := mine.HotFiles(files)
+	fmt.Printf("hot files (by commits touched, last %d commits):\n", *max)
+	for i, f := range hot {
+		if i >= *top {
+			break
+		}
+		st := files[f]
+		fmt.Printf("  %4d  +%-5d -%-5d %s\n", st.Changes, st.Added, st.Deleted, f)
+	}
+	fmt.Println("\nchange coupling (files that change together):")
+	shown := 0
+	for _, p := range pairs {
+		if shown >= *top {
+			break
+		}
+		fmt.Printf("  %4d  %s ↔ %s\n", p.Together, p.A, p.B)
+		shown++
+	}
+	if shown == 0 {
+		fmt.Println("  (none — files change independently)")
 	}
 	return nil
 }

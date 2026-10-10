@@ -22,16 +22,16 @@ var (
 	pyScenarios = regexp.MustCompile(`\bscenarios\(\s*['"]([^'"]+\.feature)['"]`)
 )
 
-func (pyExtractor) match(p string) bool { return strings.HasSuffix(p, ".py") }
+func (pyExtractor) Match(p string) bool { return strings.HasSuffix(p, ".py") }
 
-func (pyExtractor) isTestFile(p string) bool {
+func (pyExtractor) IsTestFile(p string) bool {
 	base := path.Base(p)
 	return strings.HasPrefix(base, "test_") || strings.HasSuffix(base, "_test.py") ||
 		strings.Contains(p, "tests/")
 }
 
-func (pyExtractor) parse(data []byte, filename string) (exports, tests, stepdefs []Symbol) {
-	testFile := pyExtractor{}.isTestFile(filename)
+func (pyExtractor) Parse(data []byte, filename string) (exports, tests, stepdefs []Symbol) {
+	testFile := pyExtractor{}.IsTestFile(filename)
 	sc := bufio.NewScanner(bytes.NewReader(data))
 	sc.Buffer(make([]byte, 64*1024), 1024*1024)
 	line := 0

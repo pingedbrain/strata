@@ -15,6 +15,7 @@ import (
 )
 
 // Candidate is a symbol that plausibly backs a requirement.
+// @spec mine/candidate
 type Candidate struct {
 	Name     string         // symbol name, becomes the requirement title seed
 	Kind     string         // "func", "type", "method", ...
@@ -24,6 +25,7 @@ type Candidate struct {
 }
 
 // Capability is a group of candidates, named after the directory.
+// @spec mine/capability
 type Capability struct {
 	Name       string
 	Candidates []Candidate
@@ -31,6 +33,7 @@ type Capability struct {
 
 // Scan walks fsys, extracts symbols, groups candidates by directory
 // capability, and links tests to candidates by normalized name.
+// @spec mine/scan
 func Scan(fsys fs.FS) ([]Capability, error) {
 	idx, err := index.Scan(fsys, skipNoise)
 	if err != nil {

@@ -37,6 +37,7 @@ func reqTitles(c mine.Capability) []string {
 
 // ReqTitle returns the requirement title for candidate i — the same
 // disambiguation Spec applies.
+// @spec emit/req-title
 func ReqTitle(c mine.Capability, i int) string { return reqTitles(c)[i] }
 
 // reqID is the full marker-facing ID for a candidate title.
@@ -49,6 +50,7 @@ func reqID(capName, title string) string {
 // absent and enrich is non-nil it is invoked with EnrichPrompt's prompt
 // and its (trimmed) output becomes the description — the intended hook
 // for `spec-excavate propose --enrich-cmd`. Otherwise a TODO stands in.
+// @spec emit/spec
 func Spec(c mine.Capability, enrich func(prompt string) string) string {
 	titles := reqTitles(c)
 	var b strings.Builder
@@ -78,6 +80,7 @@ func Spec(c mine.Capability, enrich func(prompt string) string) string {
 // EnrichPrompt builds the question an external assistant should answer
 // to write a requirement description. Provider-agnostic: the caller
 // pipes it to whatever command the user configured.
+// @spec emit/enrich-prompt
 func EnrichPrompt(capName, title string, cand mine.Candidate) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "In one sentence, describe the behavior this %s must guarantee.\n", cand.Kind)
@@ -94,15 +97,17 @@ func EnrichPrompt(capName, title string, cand mine.Candidate) string {
 	return b.String()
 }
 
-// MarkerSuggestion is a proposed @spec annotation for a symbol.
+// MarkerSuggestion is a proposed spec annotation for a symbol.
+// @spec emit/marker-suggestion
 type MarkerSuggestion struct {
 	File    string
 	Line    int    // insert the comment before this line
-	Comment string // full comment line, e.g. `// @spec auth/validate`
+	Comment string // full comment line, e.g. `// @spec <req-id>`
 }
 
-// SuggestMarkers proposes an @spec marker above each candidate, in the
+// SuggestMarkers proposes a spec marker above each candidate, in the
 // file's comment style.
+// @spec emit/suggest-markers
 func SuggestMarkers(caps []mine.Capability) []MarkerSuggestion {
 	var out []MarkerSuggestion
 	for _, c := range caps {

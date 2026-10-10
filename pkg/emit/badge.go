@@ -8,6 +8,7 @@ import (
 // Badge renders a shields.io endpoint JSON payload for requirement
 // coverage — drop it behind an endpoint or commit it as a badge.json
 // and reference shields.io/endpoint?url=…
+// @spec emit/badge
 func Badge(label string, covered, total int) []byte {
 	pct := 0
 	if total > 0 {

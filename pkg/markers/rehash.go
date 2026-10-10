@@ -9,6 +9,7 @@ import (
 )
 
 // Fix rewrites the bound hash of one marker occurrence.
+// @spec markers/fix
 type Fix struct {
 	File    string
 	Line    int
@@ -19,6 +20,7 @@ type Fix struct {
 // ApplyFixes rewrites marker hashes in place. Only the marker matching
 // (file, line, reqID) is touched; other occurrences of the same ID are
 // left alone.
+// @spec markers/apply-fixes
 func ApplyFixes(root string, fixes []Fix) error {
 	byFile := map[string][]Fix{}
 	var order []string

@@ -287,10 +287,15 @@ func strataIgnore(fsys fs.FS) []string {
 func codeOnly(p string, isDir bool) bool {
 	if isDir {
 		base := path.Base(p)
-		return base == "openspec" || base == "specs" || base == "features" ||
+		return base == "openspec" || base == "specs" ||
 			base == "vendor" || base == "node_modules" ||
 			(strings.HasPrefix(base, ".") && base != ".")
 	}
-	// docs are the spec side; .scip is a generated binary artifact
-	return strings.HasSuffix(p, ".md") || strings.HasSuffix(p, ".scip")
+	// docs and Gherkin features are the spec side; .scip is a
+	// generated binary artifact. A dir named "features" is NOT
+	// skipped: Python/TS repos commonly put source under
+	// app/features or src/features — only the .feature extension
+	// marks a Cucumber spec.
+	return strings.HasSuffix(p, ".md") || strings.HasSuffix(p, ".scip") ||
+		strings.HasSuffix(p, ".feature")
 }

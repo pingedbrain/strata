@@ -57,3 +57,37 @@ func TestRunNoSpecs(t *testing.T) {
 		t.Fatal("repo without specs must error")
 	}
 }
+func TestFeaturesDirIsSourceNotSpec(t *testing.T) {
+	// app/features is a common Python/TS source layout; only the
+	// .feature extension marks a Cucumber spec. Markers under a
+	// dir named "features" must be scanned and gated.
+	fs := fstest.MapFS{
+		"openspec/specs/auth/spec.md": &fstest.MapFile{Data: []byte(`# Auth
+
+## Requirements
+
+### Requirement: Token expiry
+Tokens expire.
+`)},
+		"app/features/auth/router.py": &fstest.MapFile{Data: []byte(`# @spec auth/token-expiry
+def validate(): ...
+`)},
+		"app/features/auth/ghost.py": &fstest.MapFile{Data: []byte(`# @spec auth/does-not-exist
+def ghost(): ...
+`)},
+		"features/login.feature": &fstest.MapFile{Data: []byte(`Feature: Login
+# @spec auth/self-link-must-not-scan
+`)},
+	}
+	rep, err := Run(fs, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fails := rep.GateFailures()
+	if len(fails) != 1 || fails[0] == "" {
+		t.Fatalf("want exactly 1 dangling failure (ghost.py), got %v", fails)
+	}
+	if cov, tot := rep.Result.Coverage(); cov != 1 || tot != 1 {
+		t.Fatalf("coverage %d/%d, want 1/1", cov, tot)
+	}
+}

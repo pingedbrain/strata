@@ -34,3 +34,20 @@ def f():  # @spec PY-1
 		t.Fatalf("sql-style comment marker missed: %+v", ms[3])
 	}
 }
+
+func TestScanFileBracketedReqID(t *testing.T) {
+	// Next.js dynamic route dirs ([id], [slug]) legitimately produce
+	// bracketed capability/req IDs; markers must parse them.
+	src := "// @implements [id]/detail-page\n// @spec [slug]/generate-metadata\n"
+	p := filepath.Join(t.TempDir(), "page.tsx")
+	if err := os.WriteFile(p, []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ms, err := ScanFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ms) != 2 || ms[0].ReqID != "[id]/detail-page" || ms[1].ReqID != "[slug]/generate-metadata" {
+		t.Fatalf("bracketed ids not parsed: %+v", ms)
+	}
+}

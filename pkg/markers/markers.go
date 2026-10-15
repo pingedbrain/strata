@@ -35,7 +35,7 @@ func (k Kind) String() string {
 	}
 }
 
-var re = regexp.MustCompile(`@(spec|implements|verifies)\s+([A-Za-z0-9_/.-]+)(?:\s+#([0-9a-fA-F]{6}))?`)
+var re = regexp.MustCompile(`@(spec|implements|verifies)\s+([A-Za-z0-9_/.\[\]-]+)(?:\s+#([0-9a-fA-F]{6}))?`)
 
 // Marker is one annotation occurrence.
 // @spec markers/marker

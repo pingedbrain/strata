@@ -30,7 +30,13 @@ func (*gherkinAdapter) Name() string { return "gherkin" }
 func (a *gherkinAdapter) files(dir fs.FS) []string {
 	var out []string
 	fs.WalkDir(dir, ".", func(p string, d fs.DirEntry, err error) error {
-		if err == nil && !d.IsDir() && strings.HasSuffix(p, ".feature") {
+		if err != nil {
+			return err
+		}
+		if specSearchSkip(p, d.IsDir()) {
+			return fs.SkipDir
+		}
+		if !d.IsDir() && strings.HasSuffix(p, ".feature") {
 			out = append(out, p)
 		}
 		return nil

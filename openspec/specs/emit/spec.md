@@ -68,6 +68,12 @@ MarkerSuggestion is a proposed @spec annotation for a symbol.
 
 _Evidence: pkg/emit/emit.go:98_
 
+### Requirement: Diff Markers
+DiffMarkers renders marker suggestions as a unified diff per file —
+the reviewable form of `suggest-markers` before --write applies it.
+
+_Evidence: pkg/emit/diff.go_
+
 ### Requirement: Suggest Markers
 SuggestMarkers proposes an @spec marker above each candidate, in the
 file's comment style.

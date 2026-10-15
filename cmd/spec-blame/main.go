@@ -31,8 +31,9 @@ commands:
 common flags:
   --root            repo root (default ".")
   --min-coverage    fail check below this fraction, e.g. 0.8 (default 0 = advisory)
-  --format sarif    emit SARIF 2.1.0 instead of text (check, coverage)
+  --format <fmt>    text | sarif | json (check, coverage)
   --junit <file>    merge JUnit XML results → verified/failing requirements
+                    (repeatable: --junit a.xml --junit b.xml)
 `
 
 func main() {
@@ -70,55 +71,94 @@ func main() {
 	}
 }
 
-func loadRepo(args []string) (*check.Report, string, string, error) {
+// repoArgs holds the parsed common flags shared by check and coverage.
+type repoArgs struct {
+	root   string
+	format string
+	opts   check.Options
+}
+
+func parseRepoArgs(args []string) (repoArgs, error) {
 	fs := flag.NewFlagSet("spec-blame", flag.ContinueOnError)
 	root := fs.String("root", ".", "repo root")
 	minCov := fs.Float64("min-coverage", 0, "minimum coverage fraction")
-	format := fs.String("format", "text", "output format: text | sarif")
-	junit := fs.String("junit", "", "JUnit XML test results file (inside --root)")
+	format := fs.String("format", "text", "output format: text | sarif | json")
 	scip := fs.String("scip", "", "SCIP index file (inside --root); default: auto-detect index.scip")
+	ra := repoArgs{}
+	fs.Func("junit", "JUnit XML test results file (inside --root); repeatable",
+		func(v string) error {
+			if v == "" {
+				return fmt.Errorf("empty --junit path")
+			}
+			ra.opts.JUnit = append(ra.opts.JUnit, v)
+			return nil
+		})
 	if err := fs.Parse(args); err != nil {
-		return nil, "", "", err
+		return ra, err
 	}
-	opts := check.Options{MinCoverage: *minCov, SCIP: *scip}
-	if *junit != "" {
-		opts.JUnit = []string{*junit}
+	switch *format {
+	case "text", "sarif", "json":
+		ra.format = *format
+	default:
+		return ra, fmt.Errorf("unknown --format %q (want text, sarif, or json)", *format)
 	}
-	rep, err := check.Run(os.DirFS(*root), opts)
-	return rep, *root, *format, err
+	ra.root = *root
+	ra.opts.MinCoverage = *minCov
+	ra.opts.SCIP = *scip
+	return ra, nil
+}
+
+func loadRepo(args []string) (*check.Report, repoArgs, error) {
+	ra, err := parseRepoArgs(args)
+	if err != nil {
+		return nil, ra, err
+	}
+	rep, err := check.Run(os.DirFS(ra.root), ra.opts)
+	return rep, ra, err
 }
 
 func runCheck(args []string) error {
-	rep, _, format, err := loadRepo(args)
+	rep, ra, err := loadRepo(args)
 	if err != nil {
 		return err
 	}
 	fails := rep.GateFailures()
-	if format == "sarif" {
-		b, err := rep.SARIF()
-		if err != nil {
+	switch ra.format {
+	case "sarif":
+		if err := writeReport(rep.SARIF); err != nil {
 			return err
 		}
-		os.Stdout.Write(b)
-		fmt.Println()
-		if len(fails) > 0 {
-			return fmt.Errorf("gate failed")
+	case "json":
+		if err := writeReport(rep.JSON); err != nil {
+			return err
 		}
-		return nil
-	}
-	fmt.Printf("%s, %d requirements, %d links\n",
-		fmt.Sprintf("specs: %v", rep.Formats), len(rep.Graph.IDs()), len(rep.Result.Edges))
-	for _, f := range fails {
-		fmt.Println("✗", f)
-	}
-	cov, tot := rep.Result.Coverage()
-	fmt.Printf("coverage: %d/%d requirements linked\n", cov, tot)
-	if len(rep.Result.Verified)+len(rep.Result.Failing) > 0 {
-		fmt.Printf("verified: %d · failing: %d\n", len(rep.Result.Verified), len(rep.Result.Failing))
+	default:
+		fmt.Printf("%s, %d requirements, %d links\n",
+			fmt.Sprintf("specs: %v", rep.Formats), len(rep.Graph.IDs()), len(rep.Result.Edges))
+		for _, f := range fails {
+			fmt.Println("✗", f)
+		}
+		cov, tot := rep.Result.Coverage()
+		fmt.Printf("coverage: %d/%d requirements linked\n", cov, tot)
+		if len(rep.Result.Verified)+len(rep.Result.Failing) > 0 {
+			fmt.Printf("verified: %d · failing: %d\n", len(rep.Result.Verified), len(rep.Result.Failing))
+		}
 	}
 	if len(fails) > 0 {
 		return fmt.Errorf("gate failed")
 	}
+	return nil
+}
+
+func writeReport(render func() ([]byte, error)) error {
+	b, err := render()
+	if err != nil {
+		return err
+	}
+	if _, err := os.Stdout.Write(b); err != nil {
+		return err
+	}
+	fmt.Println()
 	return nil
 }
 
@@ -144,9 +184,15 @@ func runBadge(args []string) error {
 }
 
 func runCoverage(args []string) error {
-	rep, _, _, err := loadRepo(args)
+	rep, ra, err := loadRepo(args)
 	if err != nil {
 		return err
+	}
+	switch ra.format {
+	case "sarif":
+		return writeReport(rep.SARIF)
+	case "json":
+		return writeReport(rep.JSON)
 	}
 	linked := map[string][]markers.Marker{}
 	for _, e := range rep.Result.Edges {

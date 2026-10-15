@@ -31,6 +31,25 @@ go run ./cmd/spec-blame tui   --root examples/drift         # interactive
 go run ./cmd/spec-blame check --root examples/multiformat --junit junit.xml
 ```
 
+`check` and `coverage` take `--format text|sarif|json` and a repeatable
+`--junit` (merge several result files). The JSON report is a stable
+schema for tooling:
+
+```json
+{
+  "tool": "spec-blame", "version": 1, "formats": ["openspec"],
+  "requirements": [{"id": "…", "title": "…", "source": "file:line",
+                    "hash": "a3f2b1", "linked": true, "status": "verified"}],
+  "edges":    [{"req_id": "…", "kind": "spec", "file": "…", "line": 3,
+                "hash": "…", "symbol": "…", "stale": false}],
+  "dangling": [{"req_id": "…", "kind": "spec", "file": "…", "line": 3}],
+  "unlinked": [{"name": "…", "kind": "func", "file": "…", "line": 1}],
+  "coverage": {"linked": 3, "total": 4, "fraction": 0.75},
+  "verified": ["…"], "failing": ["…"],
+  "gate": {"pass": false, "failures": ["stale: …"]}
+}
+```
+
 ## BDD: markers not required
 
 Gherkin scenarios get verification links automatically: pytest-bdd
@@ -47,7 +66,14 @@ spec-excavate scan    --root .            # candidates by capability
 spec-excavate propose --root .            # openspec skeletons to stdout
 spec-excavate propose --root . --write    # write openspec/specs/*/spec.md
 spec-excavate suggest-markers --root .    # @spec annotations to review
+spec-excavate suggest-markers --root . --format diff  # as a unified diff
+spec-excavate suggest-markers --root . --write        # apply in place
 ```
+
+Suggested markers carry the `#hash` pin of the requirement `propose`
+emits, so links get drift detection from day one — apply both and
+`check` passes immediately; edit the spec afterwards and the marker
+goes stale.
 
 Doc comments/docstrings become requirement descriptions automatically.
 For symbols without docs, `propose` can ask an external assistant —
@@ -61,6 +87,12 @@ spec-excavate history --root .                  # git hot files + coupling
 ```
 
 ## Ignore & impact
+
+Specs are discovered anywhere under `--root`, so monorepos can keep
+per-package `*/openspec/specs/` or `*/specs/` (spec-kit) trees — all are
+merged into one graph, and a requirement ID appearing in two roots is an
+error rather than a silent merge. `vendor/`, `node_modules/` and dot-dirs
+are skipped during discovery.
 
 `.strataignore` at the repo root excludes paths from specs ingestion and
 marker/symbol scanning — one pattern per line: `dir/`, `*.ext`, or an

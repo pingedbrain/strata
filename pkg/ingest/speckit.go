@@ -14,6 +14,9 @@ import (
 
 // speckitAdapter reads GitHub spec-kit repos: specs/<NNN-feature>/spec.md
 // with functional requirements as "- **FR-001**: …" bullets.
+// The specs/ dir may sit at the repo root or anywhere below it
+// (monorepo layouts), but never inside an openspec/ tree — that layout
+// is openspec's.
 // Requirement IDs: <feature-dir>/<FR-NNN>, e.g. "001-auth/FR-001".
 // The FR text is stored as a single scenario so AcceptanceHash covers it
 // (marker staleness works on spec-kit edits).
@@ -22,7 +25,7 @@ type speckitAdapter struct{}
 func init() { Register(&speckitAdapter{}) }
 
 var (
-	reSpecKitFile = regexp.MustCompile(`^specs/[^/]+/spec\.md$`)
+	reSpecKitFile = regexp.MustCompile(`(?:^|/)specs/[^/]+/spec\.md$`)
 	reFR          = regexp.MustCompile(`(?m)^[-*]\s+\*\*([A-Z]+-\d+)\*\*:\s*(.+?)\s*$`)
 )
 
@@ -31,9 +34,20 @@ func (*speckitAdapter) Name() string { return "spec-kit" }
 func (a *speckitAdapter) files(dir fs.FS) []string {
 	var out []string
 	fs.WalkDir(dir, ".", func(p string, d fs.DirEntry, err error) error {
-		if err == nil && !d.IsDir() && reSpecKitFile.MatchString(p) {
-			out = append(out, p)
+		if err != nil {
+			return err
 		}
+		if specSearchSkip(p, d.IsDir()) {
+			return fs.SkipDir
+		}
+		if d.IsDir() || !reSpecKitFile.MatchString(p) {
+			return nil
+		}
+		// openspec/specs/<cap>/spec.md is an openspec tree, not spec-kit
+		if strings.HasPrefix(p, "openspec/specs/") || strings.Contains(p, "/openspec/specs/") {
+			return nil
+		}
+		out = append(out, p)
 		return nil
 	})
 	return out

@@ -48,7 +48,7 @@ type Extractor interface {
 // @spec index/register-extractor
 func RegisterExtractor(e Extractor) { extractors = append(extractors, e) }
 
-var extractors = []Extractor{goExtractor{}, pyExtractor{}, tsExtractor{}, genericExtractor{}}
+var extractors = []Extractor{goExtractor{}, pyExtractor{}, tsExtractor{}, hclExtractor{}, genericExtractor{}}
 
 // Scan walks fsys and extracts symbols for every recognized source file
 // not skipped. skip(path, isDir)=true prunes dirs and ignores files;

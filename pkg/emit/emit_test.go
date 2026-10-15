@@ -6,6 +6,7 @@ import (
 
 	"github.com/pingedbrain/strata/pkg/index"
 	"github.com/pingedbrain/strata/pkg/mine"
+	"github.com/pingedbrain/strata/pkg/reqgraph"
 )
 
 func TestSpecRendersOpenSpecShape(t *testing.T) {
@@ -75,10 +76,22 @@ func TestSuggestMarkers(t *testing.T) {
 	if len(ms) != 2 {
 		t.Fatalf("want 2 suggestions, got %+v", ms)
 	}
-	if ms[0].Comment != "// @spec auth/validate" {
+	// each marker is pinned with the acceptance hash of the requirement
+	// Spec would emit — same normalization check uses for staleness
+	pin := func(id, reqTitle string, tests ...string) string {
+		r := &reqgraph.Requirement{ID: id, Title: reqTitle}
+		for _, tn := range tests {
+			r.Scenarios = append(r.Scenarios, reqgraph.Scenario{
+				Name:  title(testTitle(tn)),
+				Steps: []string{"TODO", "TODO"},
+			})
+		}
+		return r.AcceptanceHash()
+	}
+	if ms[0].Comment != "// @spec auth/validate #"+pin("auth/validate", "Validate") {
 		t.Fatalf("go comment wrong: %q", ms[0].Comment)
 	}
-	if ms[1].Comment != "# @spec auth/forward-request" {
+	if ms[1].Comment != "# @spec auth/forward-request #"+pin("auth/forward-request", "Forward Request") {
 		t.Fatalf("py comment wrong: %q", ms[1].Comment)
 	}
 }
@@ -92,10 +105,10 @@ func TestSameNameCollisionGetsFileStem(t *testing.T) {
 		},
 	}}
 	ms := SuggestMarkers(caps)
-	if ms[0].Comment != "# @spec effects/apply" {
+	if !strings.HasPrefix(ms[0].Comment, "# @spec effects/apply #") {
 		t.Fatalf("first occurrence keeps plain id: %q", ms[0].Comment)
 	}
-	if ms[1].Comment != "# @spec effects/reset-apply" {
+	if !strings.HasPrefix(ms[1].Comment, "# @spec effects/reset-apply #") {
 		t.Fatalf("collision not disambiguated: %q", ms[1].Comment)
 	}
 	spec := Spec(caps[0], nil)

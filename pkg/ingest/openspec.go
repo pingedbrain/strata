@@ -12,7 +12,8 @@ import (
 	"github.com/pingedbrain/strata/pkg/reqgraph"
 )
 
-// openspecAdapter reads openspec/specs/<capability>/*.md.
+// openspecAdapter reads openspec/specs/<capability>/*.md — rooted at the
+// repo root or anywhere below it (monorepos keep per-package spec trees).
 // Requirements are "### Requirement: <name>"; scenarios are
 // "#### Scenario: <name>" followed by WHEN/THEN/AND bullets.
 // Requirement IDs are derived deterministically: <capability>/<slug>.
@@ -21,25 +22,41 @@ type openspecAdapter struct{}
 func init() { Register(&openspecAdapter{}) }
 
 var (
-	reReq      = regexp.MustCompile(`^###\s+Requirement:\s*(.+?)\s*$`)
-	reScenario = regexp.MustCompile(`^####\s+Scenario:\s*(.+?)\s*$`)
-	reStep     = regexp.MustCompile(`^[-*]\s+(?:\*\*)?(?:WHEN|THEN|AND|GIVEN)(?:\*\*)?\s+(?::\s*)?(.+?)\s*$`)
+	reReq        = regexp.MustCompile(`^###\s+Requirement:\s*(.+?)\s*$`)
+	reScenario   = regexp.MustCompile(`^####\s+Scenario:\s*(.+?)\s*$`)
+	reStep       = regexp.MustCompile(`^[-*]\s+(?:\*\*)?(?:WHEN|THEN|AND|GIVEN)(?:\*\*)?\s+(?::\s*)?(.+?)\s*$`)
+	reOpenspecMD = regexp.MustCompile(`(?:^|/)openspec/specs/[^/]+/[^/]+\.md$`)
 )
 
 func (*openspecAdapter) Name() string { return "openspec" }
 
-func (*openspecAdapter) Detect(dir fs.FS) bool {
-	m, err := fs.Glob(dir, "openspec/specs/*/*.md")
-	return err == nil && len(m) > 0
+// files returns every spec.md under an openspec/specs tree, at any
+// depth below dir. Two roots that derive the same capability/ID collide
+// in Graph.Add — reported as a duplicate, never silently merged.
+func (*openspecAdapter) files(dir fs.FS) []string {
+	var out []string
+	fs.WalkDir(dir, ".", func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if specSearchSkip(p, d.IsDir()) {
+			return fs.SkipDir
+		}
+		if !d.IsDir() && reOpenspecMD.MatchString(p) {
+			out = append(out, p)
+		}
+		return nil
+	})
+	return out
 }
 
-func (*openspecAdapter) Ingest(dir fs.FS) (*reqgraph.Graph, error) {
-	files, err := fs.Glob(dir, "openspec/specs/*/*.md")
-	if err != nil {
-		return nil, err
-	}
+func (a *openspecAdapter) Detect(dir fs.FS) bool {
+	return len(a.files(dir)) > 0
+}
+
+func (a *openspecAdapter) Ingest(dir fs.FS) (*reqgraph.Graph, error) {
 	g := reqgraph.New()
-	for _, f := range files {
+	for _, f := range a.files(dir) {
 		cap := path.Base(path.Dir(f))
 		data, err := fs.ReadFile(dir, f)
 		if err != nil {

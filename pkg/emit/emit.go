@@ -69,9 +69,9 @@ func Spec(c mine.Capability, enrich func(prompt string) string) string {
 		}
 		fmt.Fprintf(&b, "### Requirement: %s\n%s\n\n", titles[i], desc)
 		fmt.Fprintf(&b, "_Evidence: %s:%d_\n\n", cand.Evidence.File, cand.Evidence.Line)
-		for _, t := range cand.Tests {
-			fmt.Fprintf(&b, "#### Scenario: %s\n", title(testTitle(t.Name)))
-			b.WriteString("- **WHEN** TODO\n- **THEN** TODO\n\n")
+		for _, sc := range reqScenarios(cand) {
+			fmt.Fprintf(&b, "#### Scenario: %s\n", sc.Name)
+			b.WriteString("- **WHEN** " + sc.Steps[0] + "\n- **THEN** " + sc.Steps[1] + "\n\n")
 		}
 	}
 	return b.String()
@@ -106,19 +106,45 @@ type MarkerSuggestion struct {
 }
 
 // SuggestMarkers proposes a spec marker above each candidate, in the
-// file's comment style.
+// file's comment style. Each comment carries the "#<hash>" pin of the
+// requirement Spec would emit for the candidate — after `propose --write`
+// + `suggest-markers --write`, `check` sees fresh (non-stale) edges and
+// later spec edits drift the pins. The hash mirrors what ingest parses
+// back out of the emitted spec.md, so it is the same normalization
+// graph.Join uses for staleness.
 // @spec emit/suggest-markers
 func SuggestMarkers(caps []mine.Capability) []MarkerSuggestion {
 	var out []MarkerSuggestion
 	for _, c := range caps {
 		titles := reqTitles(c)
 		for i, cand := range c.Candidates {
+			req := &reqgraph.Requirement{
+				ID:        reqID(c.Name, titles[i]),
+				Title:     titles[i],
+				Scenarios: reqScenarios(cand),
+			}
 			out = append(out, MarkerSuggestion{
-				File:    cand.Evidence.File,
-				Line:    cand.Evidence.Line,
-				Comment: commentPrefix(cand.Evidence.File) + " @spec " + reqID(c.Name, titles[i]),
+				File: cand.Evidence.File,
+				Line: cand.Evidence.Line,
+				Comment: commentPrefix(cand.Evidence.File) + " @spec " + req.ID +
+					" #" + req.AcceptanceHash(),
 			})
 		}
+	}
+	return out
+}
+
+// reqScenarios mirrors the "#### Scenario:" blocks Spec emits for a
+// candidate's tests — "- **WHEN** TODO" / "- **THEN** TODO" parse back
+// as steps ["TODO", "TODO"]. Shared so the emitted spec and the marker
+// pin hash the same acceptance text.
+func reqScenarios(cand mine.Candidate) []reqgraph.Scenario {
+	var out []reqgraph.Scenario
+	for _, t := range cand.Tests {
+		out = append(out, reqgraph.Scenario{
+			Name:  title(testTitle(t.Name)),
+			Steps: []string{"TODO", "TODO"},
+		})
 	}
 	return out
 }

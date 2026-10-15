@@ -5,6 +5,8 @@ package ingest
 import (
 	"fmt"
 	"io/fs"
+	"path"
+	"strings"
 
 	"github.com/pingedbrain/strata/pkg/reqgraph"
 )
@@ -21,6 +23,27 @@ type Adapter interface {
 }
 
 var adapters []Adapter
+
+// specSearchSkip prunes directories that can never host specs during
+// adapter discovery walks: dependency trees and hidden/VCS dirs. This
+// is the spec side's twin of check.codeOnly — a monorepo's vendored or
+// tooling dirs must not leak requirements into the graph. Repo-specific
+// exclusions come from .strataignore via check's filteredFS instead.
+func specSearchSkip(p string, isDir bool) bool {
+	if !isDir {
+		return false
+	}
+	base := path.Base(p)
+	return base == "vendor" || base == "node_modules" ||
+		(strings.HasPrefix(base, ".") && base != ".")
+}
+
+// specTree reports whether p sits inside an openspec/ or specs/ tree at
+// any depth — the openspec and spec-kit adapters own those files.
+func specTree(p string) bool {
+	return strings.HasPrefix(p, "openspec/") || strings.HasPrefix(p, "specs/") ||
+		strings.Contains(p, "/openspec/") || strings.Contains(p, "/specs/")
+}
 
 // Register adds an adapter; called from each adapter file's init.
 // @spec ingest/register

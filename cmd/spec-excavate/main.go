@@ -34,6 +34,10 @@ propose flags:
                   prompt goes to stdin, one-sentence reply on stdout
                   (e.g. "claude -p", "gh models run", "ollama run llama3")
   --dump-prompts  print the enrich prompts instead of running a command
+
+suggest-markers flags:
+  --format        lines (default) | diff — diff prints a unified diff
+                  to review before applying; --write applies in place
 `
 
 func main() {
@@ -64,18 +68,33 @@ func main() {
 type opts struct {
 	root        string
 	write       bool
+	format      string
 	enrichCmd   string
 	dumpPrompts bool
 }
 
-func repo(args []string) (opts, []mine.Capability, error) {
+func parseOpts(args []string) (opts, error) {
 	fs := flag.NewFlagSet("spec-excavate", flag.ContinueOnError)
 	o := opts{}
 	fs.StringVar(&o.root, "root", ".", "repo root")
 	fs.BoolVar(&o.write, "write", false, "apply changes (propose/suggest-markers)")
+	fs.StringVar(&o.format, "format", "lines", "suggest-markers output: lines | diff")
 	fs.StringVar(&o.enrichCmd, "enrich-cmd", "", "external LLM command for descriptions")
 	fs.BoolVar(&o.dumpPrompts, "dump-prompts", false, "print enrich prompts and exit")
 	if err := fs.Parse(args); err != nil {
+		return o, err
+	}
+	switch o.format {
+	case "lines", "diff":
+	default:
+		return o, fmt.Errorf("unknown --format %q (want lines or diff)", o.format)
+	}
+	return o, nil
+}
+
+func repo(args []string) (opts, []mine.Capability, error) {
+	o, err := parseOpts(args)
+	if err != nil {
 		return o, nil, err
 	}
 	caps, err := mine.Scan(os.DirFS(o.root))
@@ -160,6 +179,14 @@ func runSuggestMarkers(args []string) error {
 	}
 	sugs := emit.SuggestMarkers(caps)
 	if !o.write {
+		if o.format == "diff" {
+			out, err := emit.DiffMarkers(os.DirFS(o.root), sugs)
+			if err != nil {
+				return err
+			}
+			fmt.Print(out)
+			return nil
+		}
 		for _, s := range sugs {
 			fmt.Printf("%s:%d → insert: %s\n", s.File, s.Line, s.Comment)
 		}

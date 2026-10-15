@@ -31,6 +31,11 @@ single static binary. Everything marked **(MVP)** below.
 - ~~spec-kit adapter~~ ✅ — `specs/<NNN-feature>/spec.md` `**FR-NNN**`
   bullets → `<feature>/FR-NNN`; FR text rides in a scenario so hashes
   catch drift.
+- ~~Multi-root spec discovery~~ ✅ — `openspec/specs/` and spec-kit
+  `specs/` trees are found anywhere under `--root` (monorepo
+  per-package specs) and merged; `vendor/`, `node_modules/` and
+  dot-dirs are skipped, `.strataignore` applies, and requirement IDs
+  colliding across roots error loudly instead of silently merging.
 - GitHub issues adapter — `gh` CLI or REST; issues as requirements.
   `[size:M]` (post-MVP; needs auth story)
 
@@ -71,8 +76,9 @@ single static binary. Everything marked **(MVP)** below.
 - ~~**(MVP)** Link resolution + coverage computation~~ ✅ — `Join` classifies
   edges (stale/dangling), uncovered reqs, coverage counts. Test-name
   conventions still open. `[size:M]`
-- JUnit XML merge — test results turn `covered` into `verified`/`failing`
-  (reqcov pattern — auditors want this, costs little). `[size:M]`
+- ~~JUnit XML merge~~ ✅ — `Result.ApplyTestResults` turns `covered`
+  into `verified`/`failing` (bound-symbol + scenario-name matching).
+  `[size:M]`
 - ~~BDD test linkage — pytest-bdd/cucumber step-def graphs feed coverage~~
   ✅ step-defs (`@given/@when/@then`, `Given()`) and `scenarios()` refs
   synthesize `verifies` edges; junit scenario-name matching marks
@@ -82,7 +88,7 @@ single static binary. Everything marked **(MVP)** below.
 ### `cmd/spec-blame` — verify binary
 
 - ~~**(MVP)** `check`~~ ✅ — gate fails on dangling/stale only, coverage
-  advisory (`--min-coverage` opt-in). SARIF output still open. `[size:M]`
+  advisory (`--min-coverage` opt-in). `[size:M]`
 - ~~**(MVP)** `coverage`~~ ✅ — % + per-requirement table. `[size:S]`
 - ~~**(MVP)** `blame <file>`~~ ✅ — symbol-level: shows the declaration
   each marker binds to, plus unlinked symbols in the file.
@@ -99,20 +105,25 @@ single static binary. Everything marked **(MVP)** below.
 - ~~`badge`~~ ✅ — `spec-blame badge` emits shields.io endpoint JSON.
 - ~~SARIF~~ ✅ — `check --format sarif` emits SARIF 2.1.0 for GitHub
   code scanning (dangling=error, stale=warning, unlinked=note).
+- ~~JSON report~~ ✅ — `check|coverage --format json` emits the full
+  structured report (requirements, edges, dangling, coverage, gate);
+  `--format` validates its value, and `--junit` is repeatable.
 - ~~JUnit merge~~ ✅ — `check|coverage --junit results.xml` marks
   requirements verified/failing via test-name→symbol matching.
 
 ### `cmd/spec-excavate` — mine binary
 
-- `scan` — walk repo: test names, exported API surface, README/docs,
-  config → candidate requirement list. `[size:L]`
+- ~~`scan`~~ ✅ — walk repo → candidate requirements grouped by
+  capability, with test→symbol linkage (name-matched).
 - ~~`propose`~~ ✅ — drafts `openspec/specs/**/spec.md` from candidates.
   Doc comments/docstrings fill descriptions automatically; `--enrich-cmd`
   pipes a prompt to any external assistant (`claude -p`, `ollama`, `gh
   models`) for the rest — provider-agnostic, optional, never in the gate.
   `--dump-prompts` for copy-paste flows. `[size:L]`
-- `suggest-markers` — propose `@spec` annotations for existing symbols;
-  writes a diff the human reviews. `[size:M]`
+- ~~`suggest-markers`~~ ✅ — proposes `@spec` annotations pinned with
+  the requirement's acceptance hash (drift detection from day one);
+  `--format diff` emits the reviewable unified diff, `--write` applies
+  in place.
 - ~~Git-history mining~~ ✅ — `spec-excavate history` parses
   `git log --numstat`: hot files by commits touched + change coupling
   (co-changed file pairs) surface requirement boundaries.

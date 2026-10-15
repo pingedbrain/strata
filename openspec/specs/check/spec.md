@@ -41,6 +41,13 @@ StaleFixes converts stale edges into marker rewrites for `sync`.
 
 _Evidence: pkg/check/check.go:119_
 
+### Requirement: Report.JSON
+JSON renders the full gate report as a stable, machine-readable
+document — the companion to SARIF for tooling that wants the graph,
+not just findings.
+
+_Evidence: pkg/check/json.go_
+
 ### Requirement: Report.Impact
 Impact lists requirement IDs affected by changing file: those bound
 to symbols defined there, plus those whose implementation files

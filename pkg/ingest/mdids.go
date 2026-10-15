@@ -30,11 +30,17 @@ func (*mdidsAdapter) Name() string { return "md-ids" }
 func (a *mdidsAdapter) files(dir fs.FS) []string {
 	var out []string
 	fs.WalkDir(dir, ".", func(p string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || !strings.HasSuffix(p, ".md") {
+		if err != nil {
+			return err
+		}
+		if specSearchSkip(p, d.IsDir()) {
+			return fs.SkipDir
+		}
+		if d.IsDir() || !strings.HasSuffix(p, ".md") {
 			return nil
 		}
-		if strings.HasPrefix(p, "openspec/") || strings.HasPrefix(p, "specs/") {
-			return nil // other adapters own those trees
+		if specTree(p) {
+			return nil // other adapters own those trees, at any depth
 		}
 		out = append(out, p)
 		return nil
